@@ -379,6 +379,14 @@
             gap: 12px;
         }
 
+        /* Voice controls group - mic and send together */
+        .voice-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
         .btn-icon {
             width: 44px;
             height: 44px;
@@ -534,19 +542,23 @@
             }
 
             .input-row {
-                gap: 6px;
+                gap: 8px;
+            }
+
+            .voice-controls {
+                gap: 2px;
             }
 
             .btn-icon {
-                width: 40px;
-                height: 40px;
-                min-width: 40px;
+                width: 44px;
+                height: 44px;
+                min-width: 44px;
                 flex-shrink: 0;
             }
 
             .btn-icon svg {
-                width: 18px;
-                height: 18px;
+                width: 20px;
+                height: 20px;
             }
 
             .input-wrapper {
@@ -664,16 +676,16 @@
                         <textarea id="messageInput" placeholder="Message Haley..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
                     </div>
 
-                    <!-- Mic Button -->
-                    <button class="btn-icon btn-mic" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                    </button>
-                    <span class="recording-time" id="recordingTime"></span>
-
-                    <!-- Send Button -->
-                    <button class="btn-icon btn-send" id="sendBtn" onclick="sendMessage()" title="Send">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                    </button>
+                    <!-- Voice controls group - mic and send together -->
+                    <div class="voice-controls">
+                        <button class="btn-icon btn-mic" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                        </button>
+                        <span class="recording-time" id="recordingTime"></span>
+                        <button class="btn-icon btn-send" id="sendBtn" onclick="sendMessage()" title="Send">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
