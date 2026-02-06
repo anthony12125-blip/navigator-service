@@ -28,16 +28,12 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'OPENCLAW_URL=${_OPENCLAW_URL},OPENAI_API_KEY=${_OPENAI_API_KEY},ELEVENLABS_API_KEY=${_ELEVENLABS_API_KEY},TWILIO_ACCOUNT_SID=${_TWILIO_ACCOUNT_SID},TWILIO_AUTH_TOKEN=${_TWILIO_AUTH_TOKEN},TWILIO_FROM_NUMBER=${_TWILIO_FROM_NUMBER},USER_PHONE_NUMBER=${_USER_PHONE_NUMBER}'
+      - 'OPENCLAW_URL=${_OPENCLAW_URL},OPENAI_API_KEY=${_OPENAI_API_KEY},ELEVENLABS_API_KEY=${_ELEVENLABS_API_KEY}'
 
 images:
   - 'gcr.io/$PROJECT_ID/haley-chat:$SHORT_SHA'
 
 substitutions:
   _OPENCLAW_URL: ''          # Required: Your OpenClaw URL
-  _OPENAI_API_KEY: ''        # Required: For Whisper transcription
-  _ELEVENLABS_API_KEY: ''    # Optional: For TTS
-  _TWILIO_ACCOUNT_SID: ''    # Optional: For voice calls
-  _TWILIO_AUTH_TOKEN: ''     # Optional: For voice calls
-  _TWILIO_FROM_NUMBER: ''    # Optional: Your Twilio number
-  _USER_PHONE_NUMBER: '+14075162030'  # Your number to call
+  _OPENAI_API_KEY: ''        # Required: For Whisper transcription  
+  _ELEVENLABS_API_KEY: ''    # Required: For voice output

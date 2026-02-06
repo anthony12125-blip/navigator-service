@@ -88,6 +88,8 @@
             align-self: flex-start;
             background: #1a1a2e;
             border: 1px solid #333;
+            position: relative;
+            padding-right: 40px;
         }
 
         .input-area {
@@ -197,60 +199,46 @@
             40% { transform: scale(1); }
         }
 
-        .voice-call-btn {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: #fff;
-            padding: 8px 16px;
-            border-radius: 20px;
-            border: none;
-            cursor: pointer;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s ease;
-        }
-
-        .voice-call-btn:hover {
-            transform: scale(1.05);
-        }
-
-        .voice-call-btn.active {
-            background: #ef4444;
-        }
-
         .speaker-btn {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
             background: transparent;
             border: none;
             color: #888;
             cursor: pointer;
-            padding: 4px;
-            margin-left: 8px;
+            padding: 4px 8px;
+            font-size: 1.1rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
         }
 
         .speaker-btn:hover {
+            opacity: 1;
             color: #ff006e;
+        }
+
+        .recording-time {
+            font-size: 0.8rem;
+            color: #ff006e;
+            margin-left: 8px;
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
     <div class="chat-header">
         <h1>😈 Haley</h1>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <button class="voice-call-btn" id="voiceCallBtn" onclick="toggleVoiceCall()">
-                <span>📞</span>
-                <span id="callText">Call</span>
-            </button>
-            <div class="status">
-                <div class="status-dot"></div>
-                <span>Online</span>
-            </div>
+        <div class="status">
+            <div class="status-dot"></div>
+            <span>Online</span>
         </div>
     </div>
 
     <div class="messages" id="messages">
         <div class="message assistant">
-            Hey! I'm Haley. Text me or hit "Call" to talk with voice. What's up?
+            Hey! I'm Haley. Text me or hold the mic to talk. What's up?
+            <button class="speaker-btn" onclick="speak('Hey! I\'m Haley. Text me or hold the mic to talk. What\'s up?')">🔊</button>
         </div>
     </div>
 
@@ -258,7 +246,7 @@
         <div class="input-wrapper">
             <textarea id="messageInput" placeholder="Message Haley..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
         </div>
-        <button class="btn btn-mic" id="micBtn" onclick="toggleRecording()" title="Voice message">
+        <button class="btn btn-mic" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -266,6 +254,7 @@
                 <line x1="8" y1="23" x2="16" y2="23"></line>
             </svg>
         </button>
+        <span class="recording-time" id="recordingTime"></span>
         <button class="btn btn-send" id="sendBtn" onclick="sendMessage()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -278,11 +267,14 @@
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const micBtn = document.getElementById('micBtn');
+        const recordingTime = document.getElementById('recordingTime');
         const API_URL = window.location.origin + '/api';
         
         let isRecording = false;
         let mediaRecorder = null;
         let audioChunks = [];
+        let recordingInterval = null;
+        let recordingSeconds = 0;
 
         // Auto-resize textarea
         messageInput.addEventListener('input', function() {
@@ -301,6 +293,15 @@
             const div = document.createElement('div');
             div.className = `message ${role}`;
             div.textContent = text;
+            
+            if (role === 'assistant') {
+                const btn = document.createElement('button');
+                btn.className = 'speaker-btn';
+                btn.innerHTML = '🔊';
+                btn.onclick = () => speak(text);
+                div.appendChild(btn);
+            }
+            
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             return div;
@@ -340,8 +341,7 @@
                 const data = await response.json();
                 
                 if (data.response) {
-                    const msgDiv = addMessage(data.response, 'assistant');
-                    addSpeakerButton(msgDiv, data.response);
+                    addMessage(data.response, 'assistant');
                 } else if (data.error) {
                     addMessage('Error: ' + data.error, 'assistant');
                 }
@@ -349,14 +349,6 @@
                 hideTyping();
                 addMessage('Sorry, something went wrong. Try again?', 'assistant');
             }
-        }
-
-        function addSpeakerButton(msgDiv, text) {
-            const btn = document.createElement('button');
-            btn.className = 'speaker-btn';
-            btn.innerHTML = '🔊';
-            btn.onclick = () => speak(text);
-            msgDiv.appendChild(btn);
         }
 
         async function speak(text) {
@@ -372,89 +364,80 @@
                     const url = URL.createObjectURL(blob);
                     const audio = new Audio(url);
                     audio.play();
+                } else {
+                    console.error('TTS failed:', await response.text());
                 }
             } catch (error) {
                 console.error('TTS error:', error);
             }
         }
 
-        async function toggleRecording() {
-            if (isRecording) {
-                // Stop recording
-                mediaRecorder.stop();
-                isRecording = false;
-                micBtn.classList.remove('recording');
-            } else {
-                // Start recording
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
+        async function startRecording() {
+            if (isRecording) return;
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                recordingSeconds = 0;
 
-                    mediaRecorder.ondataavailable = (e) => {
-                        audioChunks.push(e.data);
-                    };
+                mediaRecorder.ondataavailable = (e) => {
+                    audioChunks.push(e.data);
+                };
 
-                    mediaRecorder.onstop = async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        stream.getTracks().forEach(track => track.stop());
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Transcribe
+                    showTyping();
+                    try {
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob, 'voice.webm');
+
+                        const response = await fetch(`${API_URL}/transcribe`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        hideTyping();
+                        const data = await response.json();
                         
-                        // Transcribe
-                        showTyping();
-                        try {
-                            const formData = new FormData();
-                            formData.append('audio', audioBlob, 'voice.webm');
-
-                            const response = await fetch(`${API_URL}/transcribe`, {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                            hideTyping();
-                            const data = await response.json();
-                            
-                            if (data.text) {
-                                messageInput.value = data.text;
-                                sendMessage();
-                            }
-                        } catch (error) {
-                            hideTyping();
-                            addMessage("Couldn't understand that. Try again?", 'assistant');
+                        if (data.text) {
+                            messageInput.value = data.text;
+                            sendMessage();
                         }
-                    };
+                    } catch (error) {
+                        hideTyping();
+                        addMessage("Couldn't understand that. Try again?", 'assistant');
+                    }
+                };
 
-                    mediaRecorder.start();
-                    isRecording = true;
-                    micBtn.classList.add('recording');
-                } catch (error) {
-                    alert('Could not access microphone');
-                }
+                mediaRecorder.start();
+                isRecording = true;
+                micBtn.classList.add('recording');
+                
+                // Start timer
+                recordingInterval = setInterval(() => {
+                    recordingSeconds++;
+                    const mins = Math.floor(recordingSeconds / 60);
+                    const secs = recordingSeconds % 60;
+                    recordingTime.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Mic error:', error);
             }
         }
 
-        function toggleVoiceCall() {
-            const btn = document.getElementById('voiceCallBtn');
-            const text = document.getElementById('callText');
+        function stopRecording() {
+            if (!isRecording || !mediaRecorder) return;
             
-            if (btn.classList.contains('active')) {
-                // End call
-                btn.classList.remove('active');
-                text.textContent = 'Call';
-                // TODO: Implement call ending
-            } else {
-                // Start call - redirect to Twilio
-                btn.classList.add('active');
-                text.textContent = 'End';
-                
-                // Request a call
-                fetch(`${API_URL}/call`, { method: 'POST' })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success) {
-                            addMessage('📞 Calling you now...', 'assistant');
-                        }
-                    });
-            }
+            mediaRecorder.stop();
+            isRecording = false;
+            micBtn.classList.remove('recording');
+            clearInterval(recordingInterval);
+            recordingTime.textContent = '';
         }
     </script>
 </body>

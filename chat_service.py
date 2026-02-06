@@ -1,19 +1,17 @@
 """
-Haley Chat Service - Simplified chat with Twilio voice
+Haley Chat Service - Simplified chat with ElevenLabs voice
 Deploy to Cloud Run for a single URL endpoint
 """
 
 import os
-import asyncio
 import logging
-from fastapi import FastAPI, Form, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
 import httpx
-import base64
 from io import BytesIO
 
 # Configure logging
@@ -25,10 +23,6 @@ OPENCLAW_URL = os.getenv("OPENCLAW_URL", "http://localhost:18789")
 OPENCLAW_TOKEN = os.getenv("OPENCLAW_TOKEN", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
-TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
-USER_PHONE_NUMBER = os.getenv("USER_PHONE_NUMBER", "+14075162030")
 
 # Create app
 app = FastAPI(title="Haley Chat")
@@ -81,8 +75,7 @@ async def chat(request: ChatRequest):
     try:
         logger.info(f"Chat message: {request.message[:50]}...")
         
-        # Simple HTTP POST to OpenClaw instead of WebSocket
-        # Using the chat completions endpoint if available
+        # Use OpenClaw's HTTP chat completions endpoint
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{OPENCLAW_URL}/v1/chat/completions",
@@ -102,7 +95,6 @@ async def chat(request: ChatRequest):
                 assistant_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                 return {"response": assistant_message, "status": "success"}
             else:
-                # Fallback - try WebSocket approach or return error
                 logger.error(f"OpenClaw error: {response.status_code}")
                 return {"response": "I'm having trouble connecting. Try again?", "status": "error"}
                 
@@ -177,89 +169,6 @@ async def speak(request: SpeakRequest):
     except Exception as e:
         logger.error(f"Speak error: {e}")
         return {"error": str(e)}
-
-
-@app.post("/api/call")
-async def make_call():
-    """Initiate a Twilio voice call"""
-    try:
-        if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER]):
-            return {"error": "Twilio not configured"}
-        
-        from twilio.rest import Client
-        
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        
-        # Create a call
-        call = client.calls.create(
-            to=USER_PHONE_NUMBER,
-            from_=TWILIO_FROM_NUMBER,
-            url=f"{os.getenv('PUBLIC_URL', '')}/twilio/voice"
-        )
-        
-        logger.info(f"Call initiated: {call.sid}")
-        return {"success": True, "call_sid": call.sid}
-        
-    except Exception as e:
-        logger.error(f"Call error: {e}")
-        return {"error": str(e)}
-
-
-@app.post("/twilio/voice")
-async def twilio_voice(request: Request):
-    """Twilio webhook for voice calls"""
-    from twilio.twiml.voice_response import VoiceResponse, Connect
-    
-    response = VoiceResponse()
-    
-    # Connect to a Stream for real-time audio
-    connect = Connect()
-    connect.stream(url=f"wss://{request.url.hostname}/twilio/stream")
-    response.append(connect)
-    
-    return HTMLResponse(content=str(response), media_type="application/xml")
-
-
-@app.websocket("/twilio/stream")
-async def twilio_stream(websocket):
-    """WebSocket for real-time Twilio audio streaming"""
-    import websockets
-    
-    await websocket.accept()
-    
-    try:
-        # Connect to OpenClaw
-        openclaw_ws = await websockets.connect(
-            f"{OPENCLAW_URL.replace('http', 'ws')}/ws"
-        )
-        
-        async def forward_to_openclaw():
-            """Forward audio from Twilio to OpenClaw"""
-            async for message in websocket.iter_text():
-                data = json.loads(message)
-                if data.get("event") == "media":
-                    # Audio chunk from Twilio
-                    audio_data = base64.b64decode(data["media"]["payload"])
-                    # TODO: Stream to OpenClaw or buffer for transcription
-                    
-        async def forward_to_twilio():
-            """Forward responses from OpenClaw to Twilio"""
-            async for message in openclaw_ws:
-                data = json.loads(message)
-                if data.get("type") == "token":
-                    # Send text response back to Twilio for TTS
-                    pass
-                    
-        # Run both directions
-        await asyncio.gather(
-            forward_to_openclaw(),
-            forward_to_twilio()
-        )
-        
-    except Exception as e:
-        logger.error(f"Twilio stream error: {e}")
-    finally:
-        await websocket.close()
 
 
 # ============================================================================
