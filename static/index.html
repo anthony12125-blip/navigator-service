@@ -346,6 +346,52 @@
         .chat-container.hidden {
             display: none;
         }
+
+        /* Reconnecting overlay */
+        .reconnecting-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 15, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            gap: 20px;
+        }
+
+        .reconnecting-overlay.hidden {
+            display: none;
+        }
+
+        .reconnecting-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #333;
+            border-top-color: #ff006e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .reconnecting-text {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .reconnecting-text .dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
     </style>
 </head>
 <body>
@@ -358,6 +404,12 @@
             <button class="auth-btn" onclick="authenticate()">Enter</button>
             <div class="auth-error" id="authError">Incorrect password. Try again.</div>
         </div>
+    </div>
+
+    <!-- Reconnecting Overlay -->
+    <div class="reconnecting-overlay hidden" id="reconnectingOverlay">
+        <div class="reconnecting-spinner"></div>
+        <div class="reconnecting-text">Reconnecting to HaleyOS<span class="dots"></span></div>
     </div>
 
     <!-- Chat UI (hidden until authenticated) -->
@@ -483,6 +535,7 @@
                         localStorage.setItem('haley_trusted_ip', data.ip);
                     }
                     showChat();
+                    startConnectionMonitoring();
                 } else {
                     errorEl.style.display = 'block';
                 }
@@ -525,6 +578,50 @@
             
             // Load chat history
             loadChatHistory();
+            
+            // Start monitoring connection
+            startConnectionMonitoring();
+        }
+
+        // Connection status check
+        let connectionCheckInterval = null;
+        let isConnected = false;
+
+        async function checkConnection() {
+            try {
+                const res = await fetch(`${API_URL}/health`, { 
+                    method: 'GET',
+                    signal: AbortSignal.timeout(5000)
+                });
+                const wasConnected = isConnected;
+                isConnected = res.ok;
+                
+                if (isConnected && !wasConnected) {
+                    // Just reconnected
+                    document.getElementById('reconnectingOverlay').classList.add('hidden');
+                    console.log('✅ Reconnected to HaleyOS');
+                } else if (!isConnected && wasConnected) {
+                    // Just disconnected
+                    document.getElementById('reconnectingOverlay').classList.remove('hidden');
+                    console.log('❌ Disconnected from HaleyOS');
+                }
+                
+                return isConnected;
+            } catch (e) {
+                if (isConnected) {
+                    isConnected = false;
+                    document.getElementById('reconnectingOverlay').classList.remove('hidden');
+                    console.log('❌ Connection lost');
+                }
+                return false;
+            }
+        }
+
+        function startConnectionMonitoring() {
+            // Check immediately
+            checkConnection();
+            // Then every 10 seconds
+            connectionCheckInterval = setInterval(checkConnection, 10000);
         }
 
         // Check if already authenticated via session, IP, fingerprint, or cookie
@@ -532,6 +629,7 @@
             // First check sessionStorage
             if (sessionStorage.getItem('haley_auth') === 'true') {
                 showChat();
+                startConnectionMonitoring();
                 return;
             }
             
