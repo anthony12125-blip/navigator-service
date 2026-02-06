@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Config from environment
 OPENCLAW_URL = os.getenv("OPENCLAW_URL", "http://localhost:18789")
+OPENCLAW_TOKEN = os.getenv("OPENCLAW_TOKEN", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
@@ -77,19 +78,47 @@ async def health():
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    """Send message and get response"""
+    """Send message to OpenClaw and get response"""
     try:
         logger.info(f"Chat message: {request.message[:50]}...")
         
-        # For now, return a simple response
-        # In production, this should integrate with your OpenClaw instance
-        # through a proper API or WebSocket connection
+        # Generate or reuse session ID
+        session_id = request.session_id or str(uuid.uuid4())
         
-        return {
-            "response": "I'm here! The chat service is running. To enable full responses, please configure the OpenClaw integration.",
-            "status": "success",
-            "session_id": request.session_id or str(uuid.uuid4())
-        }
+        # Call OpenClaw's OpenAI-compatible endpoint
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            headers = {
+                "Content-Type": "application/json"
+            }
+            if OPENCLAW_TOKEN:
+                headers["Authorization"] = f"Bearer {OPENCLAW_TOKEN}"
+            
+            response = await client.post(
+                f"{OPENCLAW_URL}/v1/chat/completions",
+                headers=headers,
+                json={
+                    "model": "openclaw:main",
+                    "messages": [{"role": "user", "content": request.message}],
+                    "stream": False,
+                    "user": session_id  # For session persistence
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                assistant_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                return {
+                    "response": assistant_message,
+                    "status": "success",
+                    "session_id": session_id
+                }
+            else:
+                logger.error(f"OpenClaw error: {response.status_code} - {response.text}")
+                return {
+                    "response": f"OpenClaw returned error {response.status_code}. Please try again.",
+                    "status": "error",
+                    "session_id": session_id
+                }
                 
     except Exception as e:
         logger.error(f"Chat error: {e}")
