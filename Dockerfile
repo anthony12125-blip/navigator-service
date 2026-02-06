@@ -12,14 +12,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify Node.js installation
-RUN node --version && npm --version
+# Install OpenClaw globally
+RUN npm install -g openclaw
 
-# Install OpenClaw globally and ensure it's in PATH
-RUN npm install -g openclaw && ln -s /usr/local/bin/openclaw /usr/bin/openclaw
+# Find where openclaw was installed and link it
+RUN OPENCLAW_PATH=$(find /usr -name "openclaw" -type f 2>/dev/null | head -1) && \
+    if [ -n "$OPENCLAW_PATH" ]; then \
+        ln -s "$OPENCLAW_PATH" /usr/local/bin/openclaw; \
+    fi && \
+    ls -la /usr/local/bin/openclaw || echo "Not in /usr/local/bin" && \
+    ls -la /usr/lib/node_modules/openclaw/bin/ 2>/dev/null || echo "Checking node_modules" && \
+    find /usr -name "openclaw" -type f 2>/dev/null
 
-# Verify OpenClaw installation
-RUN which openclaw && openclaw --version
+# Add node_modules/.bin to PATH
+ENV PATH="/usr/lib/node_modules/.bin:${PATH}"
 
 # Set working directory
 WORKDIR /app
