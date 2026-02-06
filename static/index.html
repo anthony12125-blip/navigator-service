@@ -207,15 +207,34 @@
             border: none;
             color: #888;
             cursor: pointer;
-            padding: 4px 8px;
-            font-size: 1.1rem;
+            padding: 8px 12px;
+            font-size: 1.5rem;
             opacity: 0.7;
-            transition: opacity 0.2s;
+            transition: all 0.2s;
+            border-radius: 8px;
         }
 
         .speaker-btn:hover {
             opacity: 1;
             color: #ff006e;
+            background: rgba(255, 0, 110, 0.1);
+        }
+
+        .speaker-btn.loading {
+            animation: pulse-speaker 0.8s infinite;
+            color: #ff006e;
+            opacity: 1;
+        }
+
+        .speaker-btn.playing {
+            color: #39ff14;
+            opacity: 1;
+            background: rgba(57, 255, 20, 0.1);
+        }
+
+        @keyframes pulse-speaker {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
         }
 
         .recording-time {
@@ -339,7 +358,7 @@
         <div class="messages" id="messages">
             <div class="message assistant">
                 Hey! I'm Haley. Text me or hold the mic to talk. What's up?
-                <button class="speaker-btn" onclick="speak('Hey! I\'m Haley. Text me or hold the mic to talk. What\'s up?')">🔊</button>
+                <button class="speaker-btn" onclick="speak('Hey! I\'m Haley. Text me or hold the mic to talk. What\'s up?', this)">🔊</button>
             </div>
         </div>
 
@@ -436,7 +455,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'speaker-btn';
                 btn.innerHTML = '🔊';
-                btn.onclick = () => speak(text);
+                btn.onclick = function() { speak(text, this); };
                 div.appendChild(btn);
             }
             
@@ -489,7 +508,27 @@
             }
         }
 
-        async function speak(text) {
+        let currentAudio = null;
+        let isSpeaking = false;
+
+        async function speak(text, btnElement) {
+            // Prevent multiple simultaneous audio
+            if (isSpeaking && currentAudio) {
+                // Stop current audio
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+                isSpeaking = false;
+                if (btnElement) {
+                    btnElement.classList.remove('playing');
+                }
+                return;
+            }
+
+            if (btnElement) {
+                btnElement.classList.add('loading');
+            }
+
             try {
                 const response = await fetch(`${API_URL}/speak`, {
                     method: 'POST',
@@ -500,13 +539,42 @@
                 if (response.ok) {
                     const blob = await response.blob();
                     const url = URL.createObjectURL(blob);
-                    const audio = new Audio(url);
-                    audio.play();
+                    currentAudio = new Audio(url);
+                    isSpeaking = true;
+
+                    if (btnElement) {
+                        btnElement.classList.remove('loading');
+                        btnElement.classList.add('playing');
+                    }
+
+                    currentAudio.onended = () => {
+                        isSpeaking = false;
+                        currentAudio = null;
+                        if (btnElement) {
+                            btnElement.classList.remove('playing');
+                        }
+                    };
+
+                    currentAudio.onerror = () => {
+                        isSpeaking = false;
+                        currentAudio = null;
+                        if (btnElement) {
+                            btnElement.classList.remove('loading', 'playing');
+                        }
+                    };
+
+                    currentAudio.play();
                 } else {
                     console.error('TTS failed:', await response.text());
+                    if (btnElement) {
+                        btnElement.classList.remove('loading');
+                    }
                 }
             } catch (error) {
                 console.error('TTS error:', error);
+                if (btnElement) {
+                    btnElement.classList.remove('loading');
+                }
             }
         }
 
