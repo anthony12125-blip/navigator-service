@@ -42,6 +42,9 @@ AUTH_PASSWORD = os.getenv("CHAT_PASSWORD", "default-password")
 # Session storage
 sessions: Dict[str, List[dict]] = {}
 
+# Trusted IPs storage (in-memory, resets on deploy)
+trusted_ips: set = set()
+
 # Create app
 app = FastAPI(title="Haley Chat")
 
@@ -88,12 +91,26 @@ async def health():
     return {"status": "healthy", "openclaw_url": OPENCLAW_URL}
 
 
+@app.get("/api/check-ip")
+async def check_ip(request: Request):
+    """Check if IP is trusted"""
+    client_ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    logger.info(f"IP check: {client_ip}, trusted: {client_ip in trusted_ips}")
+    return {"trusted": client_ip in trusted_ips, "ip": client_ip}
+
+
 @app.post("/api/auth")
 async def auth(request: Request):
-    """Password gate authentication"""
+    """Password gate authentication - remembers IP after first success"""
     data = await request.json()
+    client_ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    
     if data.get("password") == AUTH_PASSWORD:
-        return {"token": "session-token", "valid": True}
+        # Remember this IP
+        trusted_ips.add(client_ip)
+        logger.info(f"IP {client_ip} added to trusted list")
+        return {"token": "session-token", "valid": True, "ip": client_ip}
+    
     return JSONResponse(status_code=401, content={"valid": False})
 
 
