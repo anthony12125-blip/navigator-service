@@ -2,9 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Haley Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Haley</title>
     <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #14141a;
+            --bg-tertiary: #1e1e26;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --accent: #ff006e;
+            --accent-gradient: linear-gradient(135deg, #ff006e, #8338ec);
+            --border: rgba(255, 255, 255, 0.1);
+            --user-msg-bg: #2a2a35;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,35 +25,119 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0f;
-            color: #fff;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             height: 100vh;
-            display: flex;
-            flex-direction: column;
+            overflow: hidden;
         }
 
-        .chat-header {
-            background: #1a1a2e;
-            padding: 16px 20px;
-            border-bottom: 1px solid #333;
+        /* Auth Overlay */
+        .auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
+            z-index: 1000;
         }
 
-        .chat-header h1 {
-            font-size: 1.2rem;
-            background: linear-gradient(135deg, #ff006e, #8338ec);
+        .auth-overlay.hidden {
+            display: none;
+        }
+
+        .auth-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            max-width: 360px;
+            width: 90%;
+        }
+
+        .auth-box h2 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+            background: var(--accent-gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        .status {
+        .auth-box p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+            margin-bottom: 16px;
+        }
+
+        .auth-input:focus {
+            border-color: var(--accent);
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent-gradient);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .auth-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .auth-error {
+            color: var(--accent);
+            font-size: 0.85rem;
+            margin-top: 12px;
+            display: none;
+        }
+
+        /* Chat Container */
+        .chat-container {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .chat-container.visible {
+            display: flex;
+        }
+
+        /* Header */
+        .chat-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
-            color: #888;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .chat-header h1 {
+            font-size: 1.2rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .header-right {
@@ -59,6 +155,14 @@
             border: 1px solid rgba(57, 255, 20, 0.3);
         }
 
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
         .status-dot {
             width: 8px;
             height: 8px;
@@ -72,136 +176,120 @@
             50% { opacity: 0.5; }
         }
 
+        /* Messages Area - MAX WIDTH FOR PC */
         .messages {
             flex: 1;
             overflow-y: auto;
             padding: 20px;
+        }
+
+        .messages-inner {
+            max-width: 48rem;
+            margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 32px;
         }
 
-        .message {
-            max-width: 80%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            line-height: 1.5;
-            animation: fadeIn 0.3s ease;
+        /* Message Container */
+        .message-container {
+            display: flex;
+            flex-direction: column;
+            animation: messageAppear 0.3s ease-out;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
+        @keyframes messageAppear {
+            from { opacity: 0; transform: translateY(4px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .message.user {
-            align-self: flex-end;
-            background: linear-gradient(135deg, #ff006e, #8338ec);
-        }
-
-        .message.assistant {
-            align-self: flex-start;
-            background: #1a1a2e;
-            border: 1px solid #333;
-            position: relative;
-            padding-right: 50px;
-        }
-
-        .input-area {
-            background: #1a1a2e;
-            padding: 16px 20px;
-            border-top: 1px solid #333;
-            display: flex;
-            gap: 12px;
+        .message-container.user {
             align-items: flex-end;
         }
 
-        .input-wrapper {
-            flex: 1;
-            background: #0a0a0f;
-            border-radius: 24px;
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border: 1px solid #333;
+        .message-header {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            letter-spacing: 0.01em;
         }
 
-        .input-wrapper:focus-within {
-            border-color: #ff006e;
+        .message-container.user .message-header {
+            text-align: right;
         }
 
-        #messageInput {
-            flex: 1;
+        .message-content {
+            position: relative;
+            font-size: 16px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* User Message Bubble */
+        .message-container.user .message-content {
+            background: var(--user-msg-bg);
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 80%;
+            color: var(--text-primary);
+        }
+
+        /* Assistant Message */
+        .message-container.assistant .message-content {
+            color: var(--text-primary);
+            padding-right: 50px;
+        }
+
+        /* Speaker Button */
+        .speaker-btn {
+            position: absolute;
+            right: 0;
+            top: 0;
             background: transparent;
             border: none;
-            color: #fff;
-            font-size: 1rem;
-            outline: none;
-            resize: none;
-            max-height: 120px;
-            font-family: inherit;
-        }
-
-        #messageInput::placeholder {
-            color: #666;
-        }
-
-        .btn {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            border: none;
+            color: var(--text-secondary);
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
+            padding: 8px 12px;
+            font-size: 1.5rem;
+            opacity: 0.7;
+            transition: all 0.2s;
+            border-radius: 8px;
         }
 
-        .btn-mic {
-            background: #333;
-            color: #fff;
+        .speaker-btn:hover {
+            opacity: 1;
+            color: var(--accent);
+            background: rgba(255, 0, 110, 0.1);
         }
 
-        .btn-mic:hover {
-            background: #444;
+        .speaker-btn.loading {
+            animation: pulse-speaker 0.8s infinite;
+            color: var(--accent);
         }
 
-        .btn-mic.recording {
-            background: #ff006e;
-            animation: pulse-red 1s infinite;
+        .speaker-btn.playing {
+            color: #39ff14;
+            background: rgba(57, 255, 20, 0.1);
         }
 
-        @keyframes pulse-red {
+        @keyframes pulse-speaker {
             0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            50% { transform: scale(1.1); }
         }
 
-        .btn-send {
-            background: linear-gradient(135deg, #ff006e, #8338ec);
-            color: #fff;
-        }
-
-        .btn-send:hover {
-            transform: scale(1.05);
-        }
-
-        .btn-send:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
+        /* Typing Indicator */
         .typing-indicator {
             display: flex;
             gap: 4px;
-            padding: 12px 16px;
+            padding: 12px 0;
         }
 
         .typing-indicator span {
             width: 8px;
             height: 8px;
-            background: #ff006e;
+            background: var(--accent);
             border-radius: 50%;
             animation: bounce 1.4s infinite ease-in-out both;
         }
@@ -214,145 +302,157 @@
             40% { transform: scale(1); }
         }
 
-        .speaker-btn {
-            position: absolute;
-            right: 8px;
-            bottom: 8px;
-            background: transparent;
+        /* Input Area */
+        .input-area {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 16px 20px;
+        }
+
+        .input-area-inner {
+            max-width: 48rem;
+            margin: 0 auto;
+        }
+
+        /* File Preview Chips */
+        .file-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .file-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(255, 0, 110, 0.15);
+            border-radius: 16px;
+            font-size: 13px;
+        }
+
+        .file-chip button {
+            background: none;
             border: none;
-            color: #888;
+            color: var(--text-secondary);
             cursor: pointer;
-            padding: 8px 12px;
-            font-size: 1.5rem;
-            opacity: 0.7;
-            transition: all 0.2s;
-            border-radius: 8px;
-        }
-
-        .speaker-btn:hover {
-            opacity: 1;
-            color: #ff006e;
-            background: rgba(255, 0, 110, 0.1);
-        }
-
-        .speaker-btn.loading {
-            animation: pulse-speaker 0.8s infinite;
-            color: #ff006e;
-            opacity: 1;
-        }
-
-        .speaker-btn.playing {
-            color: #39ff14;
-            opacity: 1;
-            background: rgba(57, 255, 20, 0.1);
-        }
-
-        @keyframes pulse-speaker {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .recording-time {
-            font-size: 0.8rem;
-            color: #ff006e;
-            margin-left: 8px;
-            font-family: monospace;
-        }
-
-        /* Password gate */
-        .auth-overlay {
-            position: fixed;
-            inset: 0;
-            background: #0a0a0f;
+            font-size: 16px;
+            padding: 0;
+            width: 18px;
+            height: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
         }
 
-        .auth-overlay.hidden {
-            display: none;
+        .file-chip button:hover {
+            color: var(--accent);
         }
 
-        .auth-box {
-            background: #1a1a2e;
-            border: 1px solid #333;
-            border-radius: 16px;
-            padding: 40px;
-            text-align: center;
-            max-width: 360px;
-            width: 90%;
-        }
-
-        .auth-box h2 {
-            font-size: 1.4rem;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, #ff006e, #8338ec);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .auth-box p {
-            color: #888;
-            font-size: 0.9rem;
-            margin-bottom: 24px;
-        }
-
-        .auth-input {
-            width: 100%;
-            padding: 12px 16px;
-            background: #0a0a0f;
-            border: 1px solid #333;
-            border-radius: 12px;
-            color: #fff;
-            font-size: 1rem;
-            outline: none;
-            margin-bottom: 16px;
-        }
-
-        .auth-input:focus {
-            border-color: #ff006e;
-        }
-
-        .auth-btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #ff006e, #8338ec);
-            border: none;
-            border-radius: 12px;
-            color: #fff;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .auth-btn:hover {
-            transform: scale(1.02);
-        }
-
-        .auth-error {
-            color: #ff006e;
-            font-size: 0.85rem;
-            margin-top: 12px;
-            display: none;
-        }
-
-        .chat-container {
+        /* Input Row */
+        .input-row {
             display: flex;
-            flex-direction: column;
-            height: 100vh;
+            align-items: flex-end;
+            gap: 12px;
         }
 
-        .chat-container.hidden {
-            display: none;
+        .btn-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 20px;
+            transition: all 0.2s;
+            flex-shrink: 0;
         }
 
-        /* Reconnecting overlay */
+        .btn-icon:hover {
+            background: var(--accent);
+        }
+
+        .btn-plus {
+            background: var(--accent-gradient);
+        }
+
+        .btn-plus:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-mic.recording {
+            background: var(--accent);
+            animation: pulse-red 1s infinite;
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .btn-send {
+            background: var(--accent-gradient);
+        }
+
+        .btn-send:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--accent);
+        }
+
+        #messageInput {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 16px;
+            outline: none;
+            resize: none;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        #messageInput::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .recording-time {
+            font-size: 0.75rem;
+            color: var(--accent);
+            margin-left: 8px;
+            font-family: monospace;
+            min-width: 40px;
+        }
+
+        /* Reconnecting Overlay */
         .reconnecting-overlay {
             position: fixed;
             inset: 0;
             background: rgba(10, 10, 15, 0.95);
-            display: flex;
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -360,15 +460,15 @@
             gap: 20px;
         }
 
-        .reconnecting-overlay.hidden {
-            display: none;
+        .reconnecting-overlay.visible {
+            display: flex;
         }
 
         .reconnecting-spinner {
             width: 50px;
             height: 50px;
-            border: 3px solid #333;
-            border-top-color: #ff006e;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -378,24 +478,59 @@
         }
 
         .reconnecting-text {
-            color: #888;
+            color: var(--text-secondary);
             font-size: 1.1rem;
         }
 
-        .reconnecting-text .dots::after {
-            content: '';
-            animation: dots 1.5s infinite;
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .messages {
+                padding: 12px;
+            }
+
+            .messages-inner {
+                max-width: 100%;
+            }
+
+            .input-area {
+                padding: 12px;
+            }
+
+            .input-area-inner {
+                max-width: 100%;
+            }
+
+            .btn-icon {
+                width: 40px;
+                height: 40px;
+            }
+
+            .message-container.user .message-content {
+                max-width: 90%;
+            }
+
+            .chat-header {
+                padding: 10px 12px;
+            }
+
+            .chat-header h1 {
+                font-size: 1.1rem;
+            }
+
+            .trusted-badge {
+                font-size: 0.7rem;
+                padding: 3px 8px;
+            }
         }
 
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
+        /* Hidden file input */
+        .hidden-file-input {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <!-- Password Gate -->
+    <!-- Auth Overlay -->
     <div class="auth-overlay" id="authOverlay">
         <div class="auth-box">
             <h2>Haley</h2>
@@ -407,13 +542,13 @@
     </div>
 
     <!-- Reconnecting Overlay -->
-    <div class="reconnecting-overlay hidden" id="reconnectingOverlay">
+    <div class="reconnecting-overlay" id="reconnectingOverlay">
         <div class="reconnecting-spinner"></div>
-        <div class="reconnecting-text">Reconnecting to HaleyOS<span class="dots"></span></div>
+        <div class="reconnecting-text">Reconnecting to HaleyOS<span class="dots">...</span></div>
     </div>
 
-    <!-- Chat UI (hidden until authenticated) -->
-    <div class="chat-container hidden" id="chatContainer">
+    <!-- Chat Container -->
+    <div class="chat-container" id="chatContainer">
         <div class="chat-header">
             <h1>Haley</h1>
             <div class="header-right">
@@ -426,38 +561,69 @@
         </div>
 
         <div class="messages" id="messages">
-            <div class="message assistant">
-                Hey! I'm Haley. Text me or hold the mic to talk. What's up?
-                <button class="speaker-btn" onclick="speak('Hey! I\'m Haley. Text me or hold the mic to talk. What\'s up?', this)">🔊</button>
+            <div class="messages-inner" id="messagesInner">
+                <div class="message-container assistant">
+                    <div class="message-header">Haley</div>
+                    <div class="message-content">
+                        Hey! I'm Haley. Text me, upload files, or hold the mic to talk. What's up?
+                        <button class="speaker-btn" onclick="speak('Hey! I\'m Haley. Text me, upload files, or hold the mic to talk. What\'s up?', this)">🔊</button>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="input-area">
-            <div class="input-wrapper">
-                <textarea id="messageInput" placeholder="Message Haley..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
+            <div class="input-area-inner">
+                <!-- File Chips -->
+                <div class="file-chips" id="fileChips"></div>
+
+                <!-- Input Row -->
+                <div class="input-row">
+                    <!-- Plus/Upload Button -->
+                    <button class="btn-icon btn-plus" onclick="document.getElementById('fileInput').click()" title="Upload file">
+                        +
+                    </button>
+                    <input type="file" id="fileInput" class="hidden-file-input" accept="image/*,.pdf,.txt,.zip" multiple onchange="handleFiles(this.files)">
+
+                    <!-- Text Input -->
+                    <div class="input-wrapper">
+                        <textarea id="messageInput" placeholder="Message Haley..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+                    </div>
+
+                    <!-- Mic Button -->
+                    <button class="btn-icon btn-mic" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record">
+                        🎤
+                    </button>
+                    <span class="recording-time" id="recordingTime"></span>
+
+                    <!-- Send Button -->
+                    <button class="btn-icon btn-send" id="sendBtn" onclick="sendMessage()" title="Send">
+                        ➤
+                    </button>
+                </div>
             </div>
-            <button class="btn btn-mic" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                    <line x1="12" y1="19" x2="12" y2="23"></line>
-                    <line x1="8" y1="23" x2="16" y2="23"></line>
-                </svg>
-            </button>
-            <span class="recording-time" id="recordingTime"></span>
-            <button class="btn btn-send" id="sendBtn" onclick="sendMessage()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-            </button>
         </div>
     </div>
 
     <script>
         const API_URL = window.location.origin + '/api';
+        const messagesInner = document.getElementById('messagesInner');
+        const messageInput = document.getElementById('messageInput');
+        const micBtn = document.getElementById('micBtn');
+        const recordingTime = document.getElementById('recordingTime');
+        const fileChips = document.getElementById('fileChips');
+        const sendBtn = document.getElementById('sendBtn');
 
-        // ===== Browser Fingerprint Generator =====
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordingInterval = null;
+        let recordingSeconds = 0;
+        let selectedFiles = [];
+        let currentAudio = null;
+        let isSpeaking = false;
+
+        // Browser Fingerprint
         function generateFingerprint() {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
@@ -478,7 +644,6 @@
                 navigator.platform
             ].join('###');
             
-            // Simple hash
             let hash = 0;
             for (let i = 0; i < data.length; i++) {
                 const char = data.charCodeAt(i);
@@ -487,23 +652,10 @@
             }
             return 'fp_' + Math.abs(hash).toString(16);
         }
-        
-        const DEVICE_FINGERPRINT = generateFingerprint();
-        
-        // Get or create long-lived cookie
-        function getAuthCookie() {
-            return localStorage.getItem('haley_auth_cookie') || '';
-        }
-        
-        function setAuthCookie(cookie) {
-            localStorage.setItem('haley_auth_cookie', cookie);
-            // Set expiration to 30 days from now
-            const expires = new Date();
-            expires.setDate(expires.getDate() + 30);
-            localStorage.setItem('haley_auth_cookie_expires', expires.toISOString());
-        }
 
-        // ===== Auth Gate =====
+        const DEVICE_FINGERPRINT = generateFingerprint();
+
+        // Auth Functions
         async function authenticate() {
             const password = document.getElementById('authPassword').value;
             const errorEl = document.getElementById('authError');
@@ -513,29 +665,15 @@
                 const res = await fetch(`${API_URL}/auth`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        password,
-                        fingerprint: DEVICE_FINGERPRINT
-                    })
+                    body: JSON.stringify({ password, fingerprint: DEVICE_FINGERPRINT })
                 });
                 const data = await res.json();
                 if (data.valid) {
                     sessionStorage.setItem('haley_auth', 'true');
-                    
-                    // Store cookie
-                    if (data.cookie) {
-                        setAuthCookie(data.cookie);
-                    }
-                    
-                    // Store fingerprint
+                    if (data.cookie) localStorage.setItem('haley_auth_cookie', data.cookie);
                     localStorage.setItem('haley_fingerprint', DEVICE_FINGERPRINT);
-                    
-                    // Store IP info for display
-                    if (data.ip) {
-                        localStorage.setItem('haley_trusted_ip', data.ip);
-                    }
+                    if (data.ip) localStorage.setItem('haley_trusted_ip', data.ip);
                     showChat();
-                    startConnectionMonitoring();
                 } else {
                     errorEl.style.display = 'block';
                 }
@@ -544,159 +682,99 @@
             }
         }
 
-        async function loadChatHistory() {
-            try {
-                const res = await fetch(`${API_URL}/history`);
-                const data = await res.json();
-                
-                if (data.messages && data.messages.length > 0) {
-                    // Clear default welcome message
-                    messagesDiv.innerHTML = '';
-                    
-                    // Load messages
-                    data.messages.forEach(msg => {
-                        if (msg.role === 'user') {
-                            addMessage(msg.content, 'user');
-                        } else if (msg.role === 'assistant') {
-                            addMessage(msg.content, 'assistant');
-                        }
-                    });
-                }
-            } catch (e) {
-                console.log('Failed to load history:', e);
-                // Keep default welcome message
-            }
-        }
-
         function showChat() {
-            document.getElementById('authOverlay').classList.add('hidden');
-            document.getElementById('chatContainer').classList.remove('hidden');
-            
-            // Show trusted badge
+            document.getElementById('authOverlay').style.display = 'none';
+            document.getElementById('chatContainer').classList.add('visible');
             const badge = document.getElementById('trustedBadge');
-            if (badge) badge.style.display = 'inline';
-            
-            // Load chat history
-            loadChatHistory();
-            
-            // Start monitoring connection
+            if (badge && localStorage.getItem('haley_trusted_ip')) badge.style.display = 'inline';
+            loadHistory();
             startConnectionMonitoring();
         }
 
-        // Connection status check
-        let connectionCheckInterval = null;
-        let isConnected = false;
+        async function checkAuth() {
+            if (sessionStorage.getItem('haley_auth') === 'true') {
+                showChat();
+                return;
+            }
 
+            const cookieExpires = localStorage.getItem('haley_auth_cookie_expires');
+            if (cookieExpires && new Date(cookieExpires) < new Date()) {
+                localStorage.removeItem('haley_auth_cookie');
+                localStorage.removeItem('haley_auth_cookie_expires');
+            }
+
+            try {
+                const headers = { 'Content-Type': 'application/json' };
+                headers['x-device-fingerprint'] = DEVICE_FINGERPRINT;
+                const cookie = localStorage.getItem('haley_auth_cookie') || '';
+                if (cookie) headers['x-auth-cookie'] = cookie;
+
+                const res = await fetch(`${API_URL}/check-auth`, { headers });
+                const data = await res.json();
+                if (data.trusted) {
+                    sessionStorage.setItem('haley_auth', 'true');
+                    showChat();
+                }
+            } catch (e) {
+                console.log('Auth check failed');
+            }
+        }
+
+        // Connection Monitoring
+        let isConnected = false;
         async function checkConnection() {
             try {
-                const res = await fetch(`${API_URL}/health`, { 
-                    method: 'GET',
-                    signal: AbortSignal.timeout(5000)
-                });
+                const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(5000) });
                 const wasConnected = isConnected;
                 isConnected = res.ok;
-                
+                const overlay = document.getElementById('reconnectingOverlay');
                 if (isConnected && !wasConnected) {
-                    // Just reconnected
-                    document.getElementById('reconnectingOverlay').classList.add('hidden');
-                    console.log('✅ Reconnected to HaleyOS');
+                    overlay.classList.remove('visible');
                 } else if (!isConnected && wasConnected) {
-                    // Just disconnected
-                    document.getElementById('reconnectingOverlay').classList.remove('hidden');
-                    console.log('❌ Disconnected from HaleyOS');
+                    overlay.classList.add('visible');
                 }
-                
-                return isConnected;
             } catch (e) {
                 if (isConnected) {
                     isConnected = false;
-                    document.getElementById('reconnectingOverlay').classList.remove('hidden');
-                    console.log('❌ Connection lost');
+                    document.getElementById('reconnectingOverlay').classList.add('visible');
                 }
-                return false;
             }
         }
 
         function startConnectionMonitoring() {
-            // Check immediately
             checkConnection();
-            // Then every 10 seconds
-            connectionCheckInterval = setInterval(checkConnection, 10000);
+            setInterval(checkConnection, 10000);
         }
 
-        // Check if already authenticated via session, IP, fingerprint, or cookie
-        async function checkAuth() {
-            // First check sessionStorage
-            if (sessionStorage.getItem('haley_auth') === 'true') {
-                showChat();
-                startConnectionMonitoring();
-                return;
-            }
-            
-            // Check if cookie is expired
-            const cookieExpires = localStorage.getItem('haley_auth_cookie_expires');
-            if (cookieExpires && new Date(cookieExpires) < new Date()) {
-                // Cookie expired, clear it
-                localStorage.removeItem('haley_auth_cookie');
-                localStorage.removeItem('haley_auth_cookie_expires');
-            }
-            
-            // Check all auth methods with server
-            try {
-                const headers = {
-                    'Content-Type': 'application/json'
-                };
-                
-                // Add fingerprint header
-                headers['x-device-fingerprint'] = DEVICE_FINGERPRINT;
-                
-                // Add cookie if exists
-                const cookie = getAuthCookie();
-                if (cookie) {
-                    headers['x-auth-cookie'] = cookie;
-                }
-                
-                const res = await fetch(`${API_URL}/check-auth`, {
-                    headers: headers
-                });
-                const data = await res.json();
-                
-                if (data.trusted) {
-                    sessionStorage.setItem('haley_auth', 'true');
-                    
-                    // Show which method worked (for debugging)
-                    let authMethod = 'unknown';
-                    if (data.ip_trusted) authMethod = 'IP';
-                    else if (data.fingerprint_trusted) authMethod = 'fingerprint';
-                    else if (data.cookie_valid) authMethod = 'cookie';
-                    
-                    console.log(`Auto-authenticated via: ${authMethod}`);
-                    showChat();
-                }
-            } catch (e) {
-                console.log('Auth check failed, showing auth gate:', e);
-            }
+        // File Handling
+        function handleFiles(files) {
+            selectedFiles = Array.from(files);
+            updateFileChips();
         }
-        
-        checkAuth();
 
-        // ===== Chat =====
-        const messagesDiv = document.getElementById('messages');
-        const messageInput = document.getElementById('messageInput');
-        const micBtn = document.getElementById('micBtn');
-        const recordingTime = document.getElementById('recordingTime');
-        
-        let isRecording = false;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let recordingInterval = null;
-        let recordingSeconds = 0;
+        function updateFileChips() {
+            fileChips.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'file-chip';
+                chip.innerHTML = `
+                    <span>${file.name}</span>
+                    <button onclick="removeFile(${index})">×</button>
+                `;
+                fileChips.appendChild(chip);
+            });
+        }
 
-        // Auto-resize textarea
-        messageInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        });
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileChips();
+        }
+
+        // Chat Functions
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
 
         function handleKeyDown(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -706,30 +784,42 @@
         }
 
         function addMessage(text, role) {
-            const div = document.createElement('div');
-            div.className = `message ${role}`;
-            div.textContent = text;
+            const container = document.createElement('div');
+            container.className = `message-container ${role}`;
+            
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            header.textContent = role === 'user' ? 'You' : 'Haley';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.textContent = text;
             
             if (role === 'assistant') {
                 const btn = document.createElement('button');
                 btn.className = 'speaker-btn';
                 btn.innerHTML = '🔊';
                 btn.onclick = function() { speak(text, this); };
-                div.appendChild(btn);
+                content.appendChild(btn);
             }
             
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            return div;
+            container.appendChild(header);
+            container.appendChild(content);
+            messagesInner.appendChild(container);
+            messagesInner.scrollTop = messagesInner.scrollHeight;
+            return container;
         }
 
         function showTyping() {
-            const div = document.createElement('div');
-            div.className = 'message assistant typing-indicator';
-            div.id = 'typing';
-            div.innerHTML = '<span></span><span></span><span></span>';
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            const container = document.createElement('div');
+            container.className = 'message-container assistant';
+            container.id = 'typing';
+            container.innerHTML = `
+                <div class="message-header">Haley</div>
+                <div class="typing-indicator"><span></span><span></span><span></span></div>
+            `;
+            messagesInner.appendChild(container);
+            messagesInner.scrollTop = messagesInner.scrollHeight;
         }
 
         function hideTyping() {
@@ -739,140 +829,130 @@
 
         async function sendMessage() {
             const text = messageInput.value.trim();
-            if (!text) return;
+            if (!text && selectedFiles.length === 0) return;
 
-            addMessage(text, 'user');
-            messageInput.value = '';
-            messageInput.style.height = 'auto';
-            showTyping();
-
-            try {
-                const response = await fetch(`${API_URL}/chat`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
-                });
-
-                hideTyping();
-                const data = await response.json();
-                
-                if (data.response) {
-                    addMessage(data.response, 'assistant');
-                } else if (data.error) {
-                    addMessage('Error: ' + data.error, 'assistant');
+            // Upload files if any
+            if (selectedFiles.length > 0) {
+                for (const file of selectedFiles) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        await fetch(`${API_URL}/upload`, { method: 'POST', body: formData });
+                    } catch (e) {
+                        console.error('Upload failed:', e);
+                    }
                 }
-            } catch (error) {
-                hideTyping();
-                addMessage('Sorry, something went wrong. Try again?', 'assistant');
+                selectedFiles = [];
+                updateFileChips();
+            }
+
+            if (text) {
+                addMessage(text, 'user');
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+                showTyping();
+
+                try {
+                    const res = await fetch(`${API_URL}/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: text })
+                    });
+                    hideTyping();
+                    const data = await res.json();
+                    if (data.response) addMessage(data.response, 'assistant');
+                } catch (e) {
+                    hideTyping();
+                    addMessage('Sorry, something went wrong. Try again?', 'assistant');
+                }
             }
         }
 
-        let currentAudio = null;
-        let isSpeaking = false;
+        async function loadHistory() {
+            try {
+                const res = await fetch(`${API_URL}/history`);
+                const data = await res.json();
+                if (data.messages && data.messages.length > 0) {
+                    messagesInner.innerHTML = '';
+                    data.messages.forEach(msg => {
+                        if (msg.role === 'user') addMessage(msg.content, 'user');
+                        else if (msg.role === 'assistant') addMessage(msg.content, 'assistant');
+                    });
+                }
+            } catch (e) {
+                console.log('Failed to load history');
+            }
+        }
 
-        async function speak(text, btnElement) {
-            // Prevent multiple simultaneous audio
+        // Voice/TTS Functions
+        async function speak(text, btn) {
             if (isSpeaking && currentAudio) {
-                // Stop current audio
                 currentAudio.pause();
-                currentAudio.currentTime = 0;
                 currentAudio = null;
                 isSpeaking = false;
-                if (btnElement) {
-                    btnElement.classList.remove('playing');
-                }
+                if (btn) btn.classList.remove('playing');
                 return;
             }
 
-            if (btnElement) {
-                btnElement.classList.add('loading');
-            }
+            if (btn) btn.classList.add('loading');
 
             try {
-                const response = await fetch(`${API_URL}/speak`, {
+                const res = await fetch(`${API_URL}/speak`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
 
-                if (response.ok) {
-                    const blob = await response.blob();
+                if (res.ok) {
+                    const blob = await res.blob();
                     const url = URL.createObjectURL(blob);
                     currentAudio = new Audio(url);
                     isSpeaking = true;
 
-                    if (btnElement) {
-                        btnElement.classList.remove('loading');
-                        btnElement.classList.add('playing');
+                    if (btn) {
+                        btn.classList.remove('loading');
+                        btn.classList.add('playing');
                     }
 
                     currentAudio.onended = () => {
                         isSpeaking = false;
                         currentAudio = null;
-                        if (btnElement) {
-                            btnElement.classList.remove('playing');
-                        }
-                    };
-
-                    currentAudio.onerror = () => {
-                        isSpeaking = false;
-                        currentAudio = null;
-                        if (btnElement) {
-                            btnElement.classList.remove('loading', 'playing');
-                        }
+                        if (btn) btn.classList.remove('playing');
                     };
 
                     currentAudio.play();
-                } else {
-                    console.error('TTS failed:', await response.text());
-                    if (btnElement) {
-                        btnElement.classList.remove('loading');
-                    }
+                } else if (btn) {
+                    btn.classList.remove('loading');
                 }
-            } catch (error) {
-                console.error('TTS error:', error);
-                if (btnElement) {
-                    btnElement.classList.remove('loading');
-                }
+            } catch (e) {
+                if (btn) btn.classList.remove('loading');
             }
         }
 
         async function startRecording() {
             if (isRecording) return;
-            
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
                 recordingSeconds = 0;
 
-                mediaRecorder.ondataavailable = (e) => {
-                    audioChunks.push(e.data);
-                };
-
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                 mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    stream.getTracks().forEach(track => track.stop());
-                    
-                    // Transcribe
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    stream.getTracks().forEach(t => t.stop());
                     showTyping();
                     try {
                         const formData = new FormData();
-                        formData.append('audio', audioBlob, 'voice.webm');
-
-                        const response = await fetch(`${API_URL}/transcribe`, {
-                            method: 'POST',
-                            body: formData
-                        });
-
+                        formData.append('audio', blob, 'voice.webm');
+                        const res = await fetch(`${API_URL}/transcribe`, { method: 'POST', body: formData });
                         hideTyping();
-                        const data = await response.json();
-                        
+                        const data = await res.json();
                         if (data.text) {
                             messageInput.value = data.text;
                             sendMessage();
                         }
-                    } catch (error) {
+                    } catch (e) {
                         hideTyping();
                         addMessage("Couldn't understand that. Try again?", 'assistant');
                     }
@@ -881,29 +961,28 @@
                 mediaRecorder.start();
                 isRecording = true;
                 micBtn.classList.add('recording');
-                
-                // Start timer
                 recordingInterval = setInterval(() => {
                     recordingSeconds++;
-                    const mins = Math.floor(recordingSeconds / 60);
-                    const secs = recordingSeconds % 60;
-                    recordingTime.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                    const m = Math.floor(recordingSeconds / 60);
+                    const s = recordingSeconds % 60;
+                    recordingTime.textContent = `${m}:${s.toString().padStart(2, '0')}`;
                 }, 1000);
-                
-            } catch (error) {
-                console.error('Mic error:', error);
+            } catch (e) {
+                console.error('Mic error:', e);
             }
         }
 
         function stopRecording() {
             if (!isRecording || !mediaRecorder) return;
-            
             mediaRecorder.stop();
             isRecording = false;
             micBtn.classList.remove('recording');
             clearInterval(recordingInterval);
             recordingTime.textContent = '';
         }
+
+        // Init
+        checkAuth();
     </script>
 </body>
 </html>
