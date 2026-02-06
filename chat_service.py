@@ -51,6 +51,29 @@ trusted_fingerprints: set = set()
 # Cookie secrets (in production these should be env vars)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET", "haley-cookie-secret-2026")
 
+# Chat history storage
+CHAT_HISTORY_FILE = "chat_history.json"
+
+def get_chat_history():
+    """Load chat history from GCS"""
+    try:
+        blob = bucket.blob(CHAT_HISTORY_FILE)
+        if blob.exists():
+            data = blob.download_as_string()
+            return json.loads(data)
+        return []
+    except Exception as e:
+        logger.error(f"Failed to load chat history: {e}")
+        return []
+
+def save_chat_history(history):
+    """Save chat history to GCS"""
+    try:
+        blob = bucket.blob(CHAT_HISTORY_FILE)
+        blob.upload_from_string(json.dumps(history[-100:]), content_type="application/json")  # Keep last 100 messages
+    except Exception as e:
+        logger.error(f"Failed to save chat history: {e}")
+
 # Create app
 app = FastAPI(title="Haley Chat")
 
@@ -95,6 +118,13 @@ async def root():
 async def health():
     """Health check"""
     return {"status": "healthy", "openclaw_url": OPENCLAW_URL}
+
+
+@app.get("/api/history")
+async def get_history(request: Request):
+    """Get chat history"""
+    history = get_chat_history()
+    return {"messages": history}
 
 
 @app.get("/api/check-auth")
@@ -194,6 +224,10 @@ async def chat(request: ChatRequest):
         # Generate or reuse session ID
         session_id = request.session_id or str(uuid.uuid4())
         
+        # Save user message to history
+        history = get_chat_history()
+        history.append({"role": "user", "content": request.message, "timestamp": str(uuid.uuid4())[:8]})
+        
         # Call OpenClaw's OpenAI-compatible endpoint
         async with httpx.AsyncClient(timeout=60.0) as client:
             headers = {
@@ -216,6 +250,11 @@ async def chat(request: ChatRequest):
             if response.status_code == 200:
                 data = response.json()
                 assistant_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                
+                # Save assistant response to history
+                history.append({"role": "assistant", "content": assistant_message, "timestamp": str(uuid.uuid4())[:8]})
+                save_chat_history(history)
+                
                 return {
                     "response": assistant_message,
                     "status": "success",
@@ -223,6 +262,7 @@ async def chat(request: ChatRequest):
                 }
             else:
                 logger.error(f"OpenClaw error: {response.status_code} - {response.text}")
+                save_chat_history(history)  # Still save the user message
                 return {
                     "response": f"OpenClaw returned error {response.status_code}. Please try again.",
                     "status": "error",

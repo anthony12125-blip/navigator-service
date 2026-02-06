@@ -491,6 +491,30 @@
             }
         }
 
+        async function loadChatHistory() {
+            try {
+                const res = await fetch(`${API_URL}/history`);
+                const data = await res.json();
+                
+                if (data.messages && data.messages.length > 0) {
+                    // Clear default welcome message
+                    messagesDiv.innerHTML = '';
+                    
+                    // Load messages
+                    data.messages.forEach(msg => {
+                        if (msg.role === 'user') {
+                            addMessage(msg.content, 'user');
+                        } else if (msg.role === 'assistant') {
+                            addMessage(msg.content, 'assistant');
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log('Failed to load history:', e);
+                // Keep default welcome message
+            }
+        }
+
         function showChat() {
             document.getElementById('authOverlay').classList.add('hidden');
             document.getElementById('chatContainer').classList.remove('hidden');
@@ -498,6 +522,9 @@
             // Show trusted badge
             const badge = document.getElementById('trustedBadge');
             if (badge) badge.style.display = 'inline';
+            
+            // Load chat history
+            loadChatHistory();
         }
 
         // Check if already authenticated via session, IP, fingerprint, or cookie
