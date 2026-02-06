@@ -6,9 +6,9 @@ Deploy to Cloud Run for a single URL endpoint
 import os
 import logging
 import asyncio
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, List
@@ -16,6 +16,7 @@ import httpx
 from io import BytesIO
 import uuid
 import json
+from google.cloud import storage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +30,14 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
 TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
+
+# GCS config
+GCS_BUCKET = os.getenv("GCS_BUCKET_NAME", "haley_chat")
+storage_client = storage.Client()
+bucket = storage_client.bucket(GCS_BUCKET)
+
+# Auth config
+AUTH_PASSWORD = os.getenv("CHAT_PASSWORD", "default-password")
 
 # Session storage
 sessions: Dict[str, List[dict]] = {}
@@ -77,6 +86,30 @@ async def root():
 async def health():
     """Health check"""
     return {"status": "healthy", "openclaw_url": OPENCLAW_URL}
+
+
+@app.post("/api/auth")
+async def auth(request: Request):
+    """Password gate authentication"""
+    data = await request.json()
+    if data.get("password") == AUTH_PASSWORD:
+        return {"token": "session-token", "valid": True}
+    return JSONResponse(status_code=401, content={"valid": False})
+
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload file to GCS"""
+    blob = bucket.blob(f"uploads/{file.filename}")
+    blob.upload_from_file(file.file)
+    return {"url": blob.public_url, "filename": file.filename}
+
+
+@app.get("/api/files")
+async def list_files():
+    """List files in GCS bucket"""
+    blobs = bucket.list_blobs(prefix="uploads/")
+    return {"files": [{"name": b.name, "size": b.size} for b in blobs]}
 
 
 @app.post("/api/chat")

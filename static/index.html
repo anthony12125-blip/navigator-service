@@ -224,51 +224,189 @@
             margin-left: 8px;
             font-family: monospace;
         }
+
+        /* Password gate */
+        .auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: #0a0a0f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .auth-overlay.hidden {
+            display: none;
+        }
+
+        .auth-box {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            max-width: 360px;
+            width: 90%;
+        }
+
+        .auth-box h2 {
+            font-size: 1.4rem;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #ff006e, #8338ec);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .auth-box p {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: #0a0a0f;
+            border: 1px solid #333;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+            margin-bottom: 16px;
+        }
+
+        .auth-input:focus {
+            border-color: #ff006e;
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #ff006e, #8338ec);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .auth-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .auth-error {
+            color: #ff006e;
+            font-size: 0.85rem;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .chat-container.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <div class="chat-header">
-        <h1>😈 Haley</h1>
-        <div class="status">
-            <div class="status-dot"></div>
-            <span>Online</span>
+    <!-- Password Gate -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-box">
+            <h2>Haley</h2>
+            <p>Enter password to continue</p>
+            <input type="password" class="auth-input" id="authPassword" placeholder="Password" onkeydown="if(event.key==='Enter')authenticate()">
+            <button class="auth-btn" onclick="authenticate()">Enter</button>
+            <div class="auth-error" id="authError">Incorrect password. Try again.</div>
         </div>
     </div>
 
-    <div class="messages" id="messages">
-        <div class="message assistant">
-            Hey! I'm Haley. Text me or hold the mic to talk. What's up?
-            <button class="speaker-btn" onclick="speak('Hey! I\'m Haley. Text me or hold the mic to talk. What\'s up?')">🔊</button>
+    <!-- Chat UI (hidden until authenticated) -->
+    <div class="chat-container hidden" id="chatContainer">
+        <div class="chat-header">
+            <h1>Haley</h1>
+            <div class="status">
+                <div class="status-dot"></div>
+                <span>Online</span>
+            </div>
         </div>
-    </div>
 
-    <div class="input-area">
-        <div class="input-wrapper">
-            <textarea id="messageInput" placeholder="Message Haley..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
+        <div class="messages" id="messages">
+            <div class="message assistant">
+                Hey! I'm Haley. Text me or hold the mic to talk. What's up?
+                <button class="speaker-btn" onclick="speak('Hey! I\'m Haley. Text me or hold the mic to talk. What\'s up?')">🔊</button>
+            </div>
         </div>
-        <button class="btn btn-mic" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="23"></line>
-                <line x1="8" y1="23" x2="16" y2="23"></line>
-            </svg>
-        </button>
-        <span class="recording-time" id="recordingTime"></span>
-        <button class="btn btn-send" id="sendBtn" onclick="sendMessage()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-        </button>
+
+        <div class="input-area">
+            <div class="input-wrapper">
+                <textarea id="messageInput" placeholder="Message Haley..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
+            </div>
+            <button class="btn btn-mic" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+            </button>
+            <span class="recording-time" id="recordingTime"></span>
+            <button class="btn btn-send" id="sendBtn" onclick="sendMessage()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
     </div>
 
     <script>
+        const API_URL = window.location.origin + '/api';
+
+        // ===== Auth Gate =====
+        async function authenticate() {
+            const password = document.getElementById('authPassword').value;
+            const errorEl = document.getElementById('authError');
+            errorEl.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API_URL}/auth`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await res.json();
+                if (data.valid) {
+                    sessionStorage.setItem('haley_auth', 'true');
+                    showChat();
+                } else {
+                    errorEl.style.display = 'block';
+                }
+            } catch (e) {
+                errorEl.style.display = 'block';
+            }
+        }
+
+        function showChat() {
+            document.getElementById('authOverlay').classList.add('hidden');
+            document.getElementById('chatContainer').classList.remove('hidden');
+        }
+
+        // Check if already authenticated
+        if (sessionStorage.getItem('haley_auth') === 'true') {
+            showChat();
+        }
+
+        // ===== Chat =====
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const micBtn = document.getElementById('micBtn');
         const recordingTime = document.getElementById('recordingTime');
-        const API_URL = window.location.origin + '/api';
         
         let isRecording = false;
         let mediaRecorder = null;
