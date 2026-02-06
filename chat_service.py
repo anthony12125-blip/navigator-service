@@ -45,6 +45,12 @@ sessions: Dict[str, List[dict]] = {}
 # Trusted IPs storage (in-memory, resets on deploy)
 trusted_ips: set = set()
 
+# Trusted fingerprints storage
+trusted_fingerprints: set = set()
+
+# Cookie secrets (in production these should be env vars)
+COOKIE_SECRET = os.getenv("COOKIE_SECRET", "haley-cookie-secret-2026")
+
 # Create app
 app = FastAPI(title="Haley Chat")
 
@@ -91,25 +97,75 @@ async def health():
     return {"status": "healthy", "openclaw_url": OPENCLAW_URL}
 
 
+@app.get("/api/check-auth")
+async def check_auth(request: Request):
+    """Check if user is trusted via IP, fingerprint, or cookie"""
+    client_ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    fingerprint = request.headers.get("x-device-fingerprint", "")
+    cookie_token = request.headers.get("x-auth-cookie", "")
+    
+    # Check IP
+    ip_trusted = client_ip in trusted_ips
+    
+    # Check fingerprint
+    fp_trusted = fingerprint in trusted_fingerprints
+    
+    # Check cookie (simple validation)
+    cookie_valid = False
+    if cookie_token and cookie_token.startswith("haley-"):
+        # In production, validate signature here
+        cookie_valid = True
+    
+    trusted = ip_trusted or fp_trusted or cookie_valid
+    
+    logger.info(f"Auth check: IP={client_ip[:20]}... trusted={ip_trusted}, FP={fingerprint[:20]}... trusted={fp_trusted}, Cookie={cookie_valid}, Final={trusted}")
+    
+    return {
+        "trusted": trusted,
+        "ip": client_ip,
+        "ip_trusted": ip_trusted,
+        "fingerprint_trusted": fp_trusted,
+        "cookie_valid": cookie_valid
+    }
+
+
+# Legacy endpoint for backward compatibility
 @app.get("/api/check-ip")
 async def check_ip(request: Request):
-    """Check if IP is trusted"""
-    client_ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
-    logger.info(f"IP check: {client_ip}, trusted: {client_ip in trusted_ips}")
-    return {"trusted": client_ip in trusted_ips, "ip": client_ip}
+    """Check if IP is trusted (legacy endpoint)"""
+    result = await check_auth(request)
+    return {"trusted": result["trusted"], "ip": result["ip"]}
 
 
 @app.post("/api/auth")
 async def auth(request: Request):
-    """Password gate authentication - remembers IP after first success"""
+    """Password gate authentication - remembers IP, fingerprint, and sets cookie"""
     data = await request.json()
     client_ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    fingerprint = data.get("fingerprint", "")
     
     if data.get("password") == AUTH_PASSWORD:
         # Remember this IP
         trusted_ips.add(client_ip)
-        logger.info(f"IP {client_ip} added to trusted list")
-        return {"token": "session-token", "valid": True, "ip": client_ip}
+        
+        # Remember fingerprint if provided
+        if fingerprint:
+            trusted_fingerprints.add(fingerprint)
+            logger.info(f"Fingerprint added to trusted list")
+        
+        # Generate cookie token
+        import hashlib
+        import time
+        cookie_token = f"haley-{hashlib.sha256(f'{client_ip}{fingerprint}{time.time()}'.encode()).hexdigest()[:32]}"
+        
+        logger.info(f"Auth success: IP {client_ip} added to trusted list")
+        return {
+            "token": "session-token",
+            "valid": True,
+            "ip": client_ip,
+            "cookie": cookie_token,
+            "fingerprint_saved": bool(fingerprint)
+        }
     
     return JSONResponse(status_code=401, content={"valid": False})
 

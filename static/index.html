@@ -104,7 +104,7 @@
             background: #1a1a2e;
             border: 1px solid #333;
             position: relative;
-            padding-right: 40px;
+            padding-right: 50px;
         }
 
         .input-area {
@@ -405,6 +405,52 @@
     <script>
         const API_URL = window.location.origin + '/api';
 
+        // ===== Browser Fingerprint Generator =====
+        function generateFingerprint() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillText('Haley fingerprint', 2, 2);
+            
+            const data = [
+                navigator.userAgent,
+                navigator.language,
+                screen.colorDepth,
+                screen.availWidth + 'x' + screen.availHeight,
+                new Date().getTimezoneOffset(),
+                !!window.sessionStorage,
+                !!window.localStorage,
+                canvas.toDataURL(),
+                navigator.hardwareConcurrency || 'unknown',
+                navigator.platform
+            ].join('###');
+            
+            // Simple hash
+            let hash = 0;
+            for (let i = 0; i < data.length; i++) {
+                const char = data.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return 'fp_' + Math.abs(hash).toString(16);
+        }
+        
+        const DEVICE_FINGERPRINT = generateFingerprint();
+        
+        // Get or create long-lived cookie
+        function getAuthCookie() {
+            return localStorage.getItem('haley_auth_cookie') || '';
+        }
+        
+        function setAuthCookie(cookie) {
+            localStorage.setItem('haley_auth_cookie', cookie);
+            // Set expiration to 30 days from now
+            const expires = new Date();
+            expires.setDate(expires.getDate() + 30);
+            localStorage.setItem('haley_auth_cookie_expires', expires.toISOString());
+        }
+
         // ===== Auth Gate =====
         async function authenticate() {
             const password = document.getElementById('authPassword').value;
@@ -415,11 +461,23 @@
                 const res = await fetch(`${API_URL}/auth`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
+                    body: JSON.stringify({ 
+                        password,
+                        fingerprint: DEVICE_FINGERPRINT
+                    })
                 });
                 const data = await res.json();
                 if (data.valid) {
                     sessionStorage.setItem('haley_auth', 'true');
+                    
+                    // Store cookie
+                    if (data.cookie) {
+                        setAuthCookie(data.cookie);
+                    }
+                    
+                    // Store fingerprint
+                    localStorage.setItem('haley_fingerprint', DEVICE_FINGERPRINT);
+                    
                     // Store IP info for display
                     if (data.ip) {
                         localStorage.setItem('haley_trusted_ip', data.ip);
@@ -437,14 +495,12 @@
             document.getElementById('authOverlay').classList.add('hidden');
             document.getElementById('chatContainer').classList.remove('hidden');
             
-            // Show trusted badge if IP is remembered
-            if (localStorage.getItem('haley_trusted_ip')) {
-                const badge = document.getElementById('trustedBadge');
-                if (badge) badge.style.display = 'inline';
-            }
+            // Show trusted badge
+            const badge = document.getElementById('trustedBadge');
+            if (badge) badge.style.display = 'inline';
         }
 
-        // Check if already authenticated via session or trusted IP
+        // Check if already authenticated via session, IP, fingerprint, or cookie
         async function checkAuth() {
             // First check sessionStorage
             if (sessionStorage.getItem('haley_auth') === 'true') {
@@ -452,17 +508,48 @@
                 return;
             }
             
-            // Then check if IP is trusted
+            // Check if cookie is expired
+            const cookieExpires = localStorage.getItem('haley_auth_cookie_expires');
+            if (cookieExpires && new Date(cookieExpires) < new Date()) {
+                // Cookie expired, clear it
+                localStorage.removeItem('haley_auth_cookie');
+                localStorage.removeItem('haley_auth_cookie_expires');
+            }
+            
+            // Check all auth methods with server
             try {
-                const res = await fetch(`${API_URL}/check-ip`);
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                // Add fingerprint header
+                headers['x-device-fingerprint'] = DEVICE_FINGERPRINT;
+                
+                // Add cookie if exists
+                const cookie = getAuthCookie();
+                if (cookie) {
+                    headers['x-auth-cookie'] = cookie;
+                }
+                
+                const res = await fetch(`${API_URL}/check-auth`, {
+                    headers: headers
+                });
                 const data = await res.json();
+                
                 if (data.trusted) {
                     sessionStorage.setItem('haley_auth', 'true');
+                    
+                    // Show which method worked (for debugging)
+                    let authMethod = 'unknown';
+                    if (data.ip_trusted) authMethod = 'IP';
+                    else if (data.fingerprint_trusted) authMethod = 'fingerprint';
+                    else if (data.cookie_valid) authMethod = 'cookie';
+                    
+                    console.log(`Auto-authenticated via: ${authMethod}`);
                     showChat();
                 }
             } catch (e) {
-                // If check fails, show auth gate
-                console.log('IP check failed, showing auth gate');
+                console.log('Auth check failed, showing auth gate:', e);
             }
         }
         
