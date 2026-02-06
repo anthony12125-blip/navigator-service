@@ -23,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 # Config from environment
 OPENCLAW_URL = os.getenv("OPENCLAW_URL", "http://localhost:18789")
-OPENCLAW_TOKEN = os.getenv("OPENCLAW_TOKEN", "")
+OPENCLAW_TOKEN = os.getenv("OPENCLAW_TOKEN", "cloud-run-bundled-token")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
 
 # Session storage
 sessions: Dict[str, List[dict]] = {}

@@ -1,0 +1,61 @@
+FROM node:20-slim AS openclaw
+
+# Install OpenClaw globally
+RUN npm install -g openclaw
+
+# Create config directory
+RUN mkdir -p /root/.openclaw
+
+# Copy OpenClaw config with OpenAI endpoint enabled
+COPY openclaw.json /root/.openclaw/openclaw.json
+
+# Stage 2: Python for chat service
+FROM python:3.11-slim
+
+# Install Node.js for OpenClaw
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install OpenClaw
+RUN npm install -g openclaw
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy chat service code
+COPY chat_service.py .
+COPY static/ ./static/
+
+# Copy OpenClaw config
+RUN mkdir -p /root/.openclaw
+COPY openclaw.json /root/.openclaw/openclaw.json
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+# Start OpenClaw gateway in background\n\
+openclaw gateway &\n\
+OPENCLAW_PID=$!\n\
+\n\
+# Wait for OpenClaw to be ready\n\
+sleep 3\n\
+\n\
+# Set environment variable for chat service\n\
+export OPENCLAW_URL=http://localhost:18789\n\
+\n\
+# Start chat service\n\
+python chat_service.py\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Expose port
+EXPOSE 8080
+
+# Start both services
+CMD ["/app/start.sh"]
