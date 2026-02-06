@@ -39,14 +39,10 @@ bucket = storage_client.bucket(GCS_BUCKET)
 # Auth config
 AUTH_PASSWORD = os.getenv("CHAT_PASSWORD", "default-password")
 
-# System prompt - enforces English and defines Haley's personality
+# System prompt - enforces English
 SYSTEM_PROMPT = (
-    "You are Haley, a friendly and witty personal AI assistant. "
     "You MUST always respond in English. Never respond in Chinese, Japanese, Korean, "
-    "or any other non-English language unless the user explicitly asks you to. "
-    "Keep your responses concise and conversational. "
-    "You have a warm, slightly playful personality. "
-    "You can help with questions, tasks, brainstorming, and casual conversation."
+    "or any other non-English language unless the user explicitly asks you to."
 )
 
 # Session storage (conversation history per session)
