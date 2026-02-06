@@ -39,7 +39,17 @@ bucket = storage_client.bucket(GCS_BUCKET)
 # Auth config
 AUTH_PASSWORD = os.getenv("CHAT_PASSWORD", "default-password")
 
-# Session storage
+# System prompt - enforces English and defines Haley's personality
+SYSTEM_PROMPT = (
+    "You are Haley, a friendly and witty personal AI assistant. "
+    "You MUST always respond in English. Never respond in Chinese, Japanese, Korean, "
+    "or any other non-English language unless the user explicitly asks you to. "
+    "Keep your responses concise and conversational. "
+    "You have a warm, slightly playful personality. "
+    "You can help with questions, tasks, brainstorming, and casual conversation."
+)
+
+# Session storage (conversation history per session)
 sessions: Dict[str, List[dict]] = {}
 
 # Create app
@@ -117,10 +127,20 @@ async def chat(request: ChatRequest):
     """Send message to OpenClaw and get response"""
     try:
         logger.info(f"Chat message: {request.message[:50]}...")
-        
+
         # Generate or reuse session ID
         session_id = request.session_id or str(uuid.uuid4())
-        
+
+        # Initialize session history if new
+        if session_id not in sessions:
+            sessions[session_id] = []
+
+        # Add user message to history
+        sessions[session_id].append({"role": "user", "content": request.message})
+
+        # Build messages with system prompt + conversation history
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + sessions[session_id]
+
         # Call OpenClaw's OpenAI-compatible endpoint
         async with httpx.AsyncClient(timeout=60.0) as client:
             headers = {
@@ -128,21 +148,29 @@ async def chat(request: ChatRequest):
             }
             if OPENCLAW_TOKEN:
                 headers["Authorization"] = f"Bearer {OPENCLAW_TOKEN}"
-            
+
             response = await client.post(
                 f"{OPENCLAW_URL}/v1/chat/completions",
                 headers=headers,
                 json={
                     "model": "openclaw:main",
-                    "messages": [{"role": "user", "content": request.message}],
+                    "messages": messages,
                     "stream": False,
-                    "user": session_id  # For session persistence
+                    "user": session_id
                 }
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 assistant_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+                # Store assistant response in history
+                sessions[session_id].append({"role": "assistant", "content": assistant_message})
+
+                # Keep history manageable (last 50 messages)
+                if len(sessions[session_id]) > 50:
+                    sessions[session_id] = sessions[session_id][-50:]
+
                 return {
                     "response": assistant_message,
                     "status": "success",
@@ -155,7 +183,7 @@ async def chat(request: ChatRequest):
                     "status": "error",
                     "session_id": session_id
                 }
-                
+
     except Exception as e:
         logger.error(f"Chat error: {e}")
         return {"response": "Something went wrong. Try again?", "status": "error"}

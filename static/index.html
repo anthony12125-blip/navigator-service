@@ -406,8 +406,11 @@
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const micBtn = document.getElementById('micBtn');
+        const sendBtn = document.getElementById('sendBtn');
         const recordingTime = document.getElementById('recordingTime');
-        
+
+        let sessionId = null;
+        let isSending = false;
         let isRecording = false;
         let mediaRecorder = null;
         let audioChunks = [];
@@ -461,7 +464,10 @@
 
         async function sendMessage() {
             const text = messageInput.value.trim();
-            if (!text) return;
+            if (!text || isSending) return;
+
+            isSending = true;
+            sendBtn.disabled = true;
 
             addMessage(text, 'user');
             messageInput.value = '';
@@ -469,15 +475,20 @@
             showTyping();
 
             try {
+                const body = { message: text };
+                if (sessionId) body.session_id = sessionId;
+
                 const response = await fetch(`${API_URL}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
+                    body: JSON.stringify(body)
                 });
 
                 hideTyping();
                 const data = await response.json();
-                
+
+                if (data.session_id) sessionId = data.session_id;
+
                 if (data.response) {
                     addMessage(data.response, 'assistant');
                 } else if (data.error) {
@@ -486,6 +497,10 @@
             } catch (error) {
                 hideTyping();
                 addMessage('Sorry, something went wrong. Try again?', 'assistant');
+            } finally {
+                isSending = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
             }
         }
 
