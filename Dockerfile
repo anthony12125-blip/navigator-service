@@ -4,12 +4,22 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install OpenClaw globally
-RUN npm install -g openclaw
+# Verify Node.js installation
+RUN node --version && npm --version
+
+# Install OpenClaw globally and ensure it's in PATH
+RUN npm install -g openclaw && ln -s /usr/local/bin/openclaw /usr/bin/openclaw
+
+# Verify OpenClaw installation
+RUN which openclaw && openclaw --version
 
 # Set working directory
 WORKDIR /app
