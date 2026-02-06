@@ -1,31 +1,26 @@
+FROM node:20-slim AS node-base
+
+# Stage 2: Python + Node combined
 FROM python:3.11-slim
 
-# Install system dependencies and Node.js
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    gnupg \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# Copy Node.js from node image
+COPY --from=node-base /usr/local/bin/node /usr/local/bin/
+COPY --from=node-base /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node-base /usr/local/bin/npm /usr/local/bin/
+COPY --from=node-base /usr/local/bin/npx /usr/local/bin/
 
-# Install OpenClaw globally
+# Create node symlinks
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm-cli.js 2>/dev/null || true
+
+# Install OpenClaw
 RUN npm install -g openclaw
 
-# Find where openclaw was installed and link it
-RUN OPENCLAW_PATH=$(find /usr -name "openclaw" -type f 2>/dev/null | head -1) && \
-    if [ -n "$OPENCLAW_PATH" ]; then \
-        ln -s "$OPENCLAW_PATH" /usr/local/bin/openclaw; \
-    fi && \
-    ls -la /usr/local/bin/openclaw || echo "Not in /usr/local/bin" && \
-    ls -la /usr/lib/node_modules/openclaw/bin/ 2>/dev/null || echo "Checking node_modules" && \
-    find /usr -name "openclaw" -type f 2>/dev/null
+# Find and link openclaw
+RUN find /usr -name "openclaw" -type f 2>/dev/null && \
+    ls -la /usr/local/lib/node_modules/openclaw/ 2>/dev/null || true
 
-# Add node_modules/.bin to PATH
-ENV PATH="/usr/lib/node_modules/.bin:${PATH}"
+# Add to PATH
+ENV PATH="/usr/local/bin:/usr/local/lib/node_modules/.bin:${PATH}"
 
 # Set working directory
 WORKDIR /app
@@ -38,7 +33,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY chat_service.py .
 COPY static/ ./static/
 
-# Copy OpenClaw config with OpenAI endpoint enabled
+# Copy OpenClaw config
 RUN mkdir -p /root/.openclaw
 COPY openclaw.json /root/.openclaw/openclaw.json
 
@@ -49,5 +44,4 @@ RUN chmod +x /app/start.sh
 # Expose port
 EXPOSE 8080
 
-# Start both services
 CMD ["/app/start.sh"]
