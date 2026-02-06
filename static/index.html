@@ -17,6 +17,34 @@
             --user-msg-bg: #2a2a35;
         }
 
+        /* Light theme */
+        :root.light {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e8e8ec;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --accent: #ff006e;
+            --accent-gradient: linear-gradient(135deg, #ff006e, #8338ec);
+            --border: rgba(0, 0, 0, 0.1);
+            --user-msg-bg: #e1e1e8;
+        }
+
+        /* Auto-detect system preference */
+        @media (prefers-color-scheme: light) {
+            :root:not(.dark) {
+                --bg-primary: #f5f5f7;
+                --bg-secondary: #ffffff;
+                --bg-tertiary: #e8e8ec;
+                --text-primary: #1a1a1a;
+                --text-secondary: #666666;
+                --accent: #ff006e;
+                --accent-gradient: linear-gradient(135deg, #ff006e, #8338ec);
+                --border: rgba(0, 0, 0, 0.1);
+                --user-msg-bg: #e1e1e8;
+            }
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -168,6 +196,25 @@
             padding: 4px 10px;
             border-radius: 12px;
             border: 1px solid rgba(57, 255, 20, 0.3);
+        }
+
+        .theme-toggle {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-tertiary);
+            color: var(--accent);
         }
 
         .status {
@@ -638,6 +685,9 @@
         <div class="chat-header">
             <h1>Haley</h1>
             <div class="header-right">
+                <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
                 <span class="trusted-badge" id="trustedBadge" style="display: none;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Remembered</span>
                 <div class="status">
                     <div class="status-dot"></div>
@@ -1065,6 +1115,33 @@
             micBtn.classList.remove('recording');
             clearInterval(recordingInterval);
             recordingTime.textContent = '';
+        }
+
+        // Theme toggle
+        function toggleTheme() {
+            const isLight = document.documentElement.classList.toggle('light');
+            localStorage.setItem('haley_theme', isLight ? 'light' : 'dark');
+            updateThemeIcon(isLight);
+        }
+
+        function updateThemeIcon(isLight) {
+            const btn = document.getElementById('themeToggle');
+            if (btn) {
+                btn.innerHTML = isLight 
+                    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>'
+                    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+            }
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('haley_theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        if (savedTheme === 'light' || (!savedTheme && !prefersDark)) {
+            document.documentElement.classList.add('light');
+            updateThemeIcon(true);
+        } else {
+            updateThemeIcon(false);
         }
 
         // Init
