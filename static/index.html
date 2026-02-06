@@ -114,10 +114,18 @@
             display: none;
             flex-direction: column;
             height: 100vh;
+            padding-bottom: 80px; /* Space for fixed input */
         }
 
         .chat-container.visible {
             display: flex;
+        }
+
+        /* Adjust for mobile safe area */
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .chat-container {
+                padding-bottom: calc(80px + env(safe-area-inset-bottom));
+            }
         }
 
         /* Header */
@@ -302,11 +310,17 @@
             40% { transform: scale(1); }
         }
 
-        /* Input Area */
+        /* Input Area - Fixed at bottom */
         .input-area {
             background: var(--bg-secondary);
             border-top: 1px solid var(--border);
-            padding: 16px 20px;
+            padding: 12px 16px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
         }
 
         .input-area-inner {
@@ -486,6 +500,7 @@
         @media (max-width: 768px) {
             .messages {
                 padding: 12px;
+                padding-bottom: 100px; /* Space for fixed input */
             }
 
             .messages-inner {
@@ -493,20 +508,38 @@
             }
 
             .input-area {
-                padding: 12px;
+                padding: 8px 12px;
             }
 
             .input-area-inner {
                 max-width: 100%;
             }
 
+            .input-row {
+                gap: 8px;
+            }
+
             .btn-icon {
-                width: 40px;
-                height: 40px;
+                width: 36px;
+                height: 36px;
+                min-width: 36px;
+            }
+
+            .btn-icon svg {
+                width: 18px;
+                height: 18px;
+            }
+
+            .input-wrapper {
+                padding: 8px 12px;
+            }
+
+            #messageInput {
+                font-size: 16px; /* Prevent zoom on iOS */
             }
 
             .message-container.user .message-content {
-                max-width: 90%;
+                max-width: 85%;
             }
 
             .chat-header {
@@ -520,6 +553,11 @@
             .trusted-badge {
                 font-size: 0.7rem;
                 padding: 3px 8px;
+            }
+
+            .recording-time {
+                font-size: 0.7rem;
+                min-width: 35px;
             }
         }
 
