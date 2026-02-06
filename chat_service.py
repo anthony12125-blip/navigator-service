@@ -5,14 +5,17 @@ Deploy to Cloud Run for a single URL endpoint
 
 import os
 import logging
-from fastapi import FastAPI, UploadFile, File
+import asyncio
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, List
 import httpx
 from io import BytesIO
+import uuid
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,9 +23,11 @@ logger = logging.getLogger(__name__)
 
 # Config from environment
 OPENCLAW_URL = os.getenv("OPENCLAW_URL", "http://localhost:18789")
-OPENCLAW_TOKEN = os.getenv("OPENCLAW_TOKEN", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+
+# Session storage
+sessions: Dict[str, List[dict]] = {}
 
 # Create app
 app = FastAPI(title="Haley Chat")
@@ -46,6 +51,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
 
 
 class SpeakRequest(BaseModel):
@@ -71,36 +77,53 @@ async def health():
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    """Send message to OpenClaw and get response"""
+    """Send message and get response"""
     try:
         logger.info(f"Chat message: {request.message[:50]}...")
         
-        # Use OpenClaw's HTTP chat completions endpoint
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{OPENCLAW_URL}/v1/chat/completions",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {OPENCLAW_TOKEN}" if OPENCLAW_TOKEN else ""
-                },
-                json={
-                    "model": "haley",
-                    "messages": [{"role": "user", "content": request.message}],
-                    "stream": False
-                }
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                assistant_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                return {"response": assistant_message, "status": "success"}
-            else:
-                logger.error(f"OpenClaw error: {response.status_code}")
-                return {"response": "I'm having trouble connecting. Try again?", "status": "error"}
+        # For now, return a simple response
+        # In production, this should integrate with your OpenClaw instance
+        # through a proper API or WebSocket connection
+        
+        return {
+            "response": "I'm here! The chat service is running. To enable full responses, please configure the OpenClaw integration.",
+            "status": "success",
+            "session_id": request.session_id or str(uuid.uuid4())
+        }
                 
     except Exception as e:
         logger.error(f"Chat error: {e}")
         return {"response": "Something went wrong. Try again?", "status": "error"}
+
+
+@app.websocket("/ws/chat")
+async def websocket_chat(websocket: WebSocket):
+    """WebSocket endpoint for real-time chat"""
+    await websocket.accept()
+    session_id = str(uuid.uuid4())
+    
+    try:
+        while True:
+            # Receive message from client
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            user_message = message_data.get("message", "")
+            
+            logger.info(f"WebSocket message: {user_message[:50]}...")
+            
+            # Echo back for now - replace with actual OpenClaw integration
+            response = {
+                "type": "message",
+                "content": f"Echo: {user_message}",
+                "session_id": session_id
+            }
+            await websocket.send_json(response)
+            
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected: {session_id}")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        await websocket.close()
 
 
 @app.post("/api/transcribe")
