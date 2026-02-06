@@ -42,14 +42,52 @@ AUTH_PASSWORD = os.getenv("CHAT_PASSWORD", "default-password")
 # Session storage
 sessions: Dict[str, List[dict]] = {}
 
-# Trusted IPs storage (in-memory, resets on deploy)
-trusted_ips: set = set()
-
-# Trusted fingerprints storage
-trusted_fingerprints: set = set()
+# Auth storage - now persistent in GCS
+TRUSTED_IPS_FILE = "trusted_ips.json"
+TRUSTED_FINGERPRINTS_FILE = "trusted_fingerprints.json"
 
 # Cookie secrets (in production these should be env vars)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET", "haley-cookie-secret-2026")
+
+def get_trusted_ips():
+    """Load trusted IPs from GCS"""
+    try:
+        blob = bucket.blob(TRUSTED_IPS_FILE)
+        if blob.exists():
+            data = blob.download_as_string()
+            return set(json.loads(data))
+        return set()
+    except Exception as e:
+        logger.error(f"Failed to load trusted IPs: {e}")
+        return set()
+
+def save_trusted_ips(ips):
+    """Save trusted IPs to GCS"""
+    try:
+        blob = bucket.blob(TRUSTED_IPS_FILE)
+        blob.upload_from_string(json.dumps(list(ips)), content_type="application/json")
+    except Exception as e:
+        logger.error(f"Failed to save trusted IPs: {e}")
+
+def get_trusted_fingerprints():
+    """Load trusted fingerprints from GCS"""
+    try:
+        blob = bucket.blob(TRUSTED_FINGERPRINTS_FILE)
+        if blob.exists():
+            data = blob.download_as_string()
+            return set(json.loads(data))
+        return set()
+    except Exception as e:
+        logger.error(f"Failed to load trusted fingerprints: {e}")
+        return set()
+
+def save_trusted_fingerprints(fingerprints):
+    """Save trusted fingerprints to GCS"""
+    try:
+        blob = bucket.blob(TRUSTED_FINGERPRINTS_FILE)
+        blob.upload_from_string(json.dumps(list(fingerprints)), content_type="application/json")
+    except Exception as e:
+        logger.error(f"Failed to save trusted fingerprints: {e}")
 
 # Chat history storage
 CHAT_HISTORY_FILE = "chat_history.json"
@@ -134,6 +172,10 @@ async def check_auth(request: Request):
     fingerprint = request.headers.get("x-device-fingerprint", "")
     cookie_token = request.headers.get("x-auth-cookie", "")
     
+    # Load from GCS
+    trusted_ips = get_trusted_ips()
+    trusted_fingerprints = get_trusted_fingerprints()
+    
     # Check IP
     ip_trusted = client_ip in trusted_ips
     
@@ -175,12 +217,18 @@ async def auth(request: Request):
     fingerprint = data.get("fingerprint", "")
     
     if data.get("password") == AUTH_PASSWORD:
+        # Load existing
+        trusted_ips = get_trusted_ips()
+        trusted_fingerprints = get_trusted_fingerprints()
+        
         # Remember this IP
         trusted_ips.add(client_ip)
+        save_trusted_ips(trusted_ips)
         
         # Remember fingerprint if provided
         if fingerprint:
             trusted_fingerprints.add(fingerprint)
+            save_trusted_fingerprints(trusted_fingerprints)
             logger.info(f"Fingerprint added to trusted list")
         
         # Generate cookie token
