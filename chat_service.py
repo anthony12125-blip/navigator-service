@@ -46,7 +46,7 @@ SYSTEM_PROMPT = (
 )
 
 # Build version
-BUILD_VERSION = "007"
+BUILD_VERSION = "008"
 
 # In-memory session cache (primary, fast, message-to-message)
 session_cache: Dict[str, List[dict]] = {}

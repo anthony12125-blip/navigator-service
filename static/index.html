@@ -217,6 +217,23 @@
             color: var(--accent);
         }
 
+        .tts-toggle {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            padding: 4px 8px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tts-toggle:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
         .status {
             display: flex;
             align-items: center;
@@ -685,6 +702,7 @@
         <div class="chat-header">
             <h1>Haley</h1>
             <div class="header-right">
+                <button class="tts-toggle" id="ttsToggle" onclick="toggleTtsMode()" title="Switch TTS engine">Browser TTS</button>
                 <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 </button>
@@ -940,7 +958,7 @@
             content.className = 'message-content';
             content.textContent = text;
             
-            if (role === 'assistant') {
+            if (role === 'assistant' && hasBrowserTTS) {
                 const btn = document.createElement('button');
                 btn.className = 'speaker-btn';
                 btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
@@ -1051,7 +1069,68 @@
         }
 
         // Voice/TTS Functions
+        const hasBrowserTTS = 'speechSynthesis' in window;
+        let ttsMode = localStorage.getItem('haley_tts_mode') || 'browser'; // 'browser' or 'elevenlabs'
+
+        // Hide speaker buttons if no TTS support at all
+        if (!hasBrowserTTS) {
+            document.querySelectorAll('.speaker-btn').forEach(b => b.style.display = 'none');
+        }
+
+        // Hide TTS toggle if browser TTS not available
+        if (!hasBrowserTTS) {
+            const ttsToggleBtn = document.getElementById('ttsToggle');
+            if (ttsToggleBtn) ttsToggleBtn.style.display = 'none';
+        } else {
+            updateTtsToggleLabel();
+        }
+
+        function toggleTtsMode() {
+            ttsMode = ttsMode === 'browser' ? 'elevenlabs' : 'browser';
+            localStorage.setItem('haley_tts_mode', ttsMode);
+            updateTtsToggleLabel();
+        }
+
+        function updateTtsToggleLabel() {
+            const btn = document.getElementById('ttsToggle');
+            if (btn) btn.textContent = ttsMode === 'browser' ? 'Browser TTS' : 'ElevenLabs TTS';
+        }
+
         async function speak(text, btn) {
+            if (ttsMode === 'browser') {
+                speakBrowser(text, btn);
+            } else {
+                await speakElevenLabs(text, btn);
+            }
+        }
+
+        function speakBrowser(text, btn) {
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+                isSpeaking = false;
+                if (btn) btn.classList.remove('playing');
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            isSpeaking = true;
+            if (btn) btn.classList.add('playing');
+
+            utterance.onend = () => {
+                isSpeaking = false;
+                if (btn) btn.classList.remove('playing');
+            };
+
+            utterance.onerror = () => {
+                isSpeaking = false;
+                if (btn) btn.classList.remove('playing');
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        async function speakElevenLabs(text, btn) {
             if (isSpeaking && currentAudio) {
                 currentAudio.pause();
                 currentAudio = null;
