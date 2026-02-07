@@ -45,8 +45,25 @@ SYSTEM_PROMPT = (
     "or any other non-English language unless the user explicitly asks you to."
 )
 
-# Session storage (conversation history per session)
-sessions: Dict[str, List[dict]] = {}
+# Session storage helpers (GCS-backed)
+def load_session(session_id: str) -> List[dict]:
+    """Load conversation history from GCS."""
+    try:
+        blob = bucket.blob(f"sessions/{session_id}.json")
+        if blob.exists():
+            return json.loads(blob.download_as_text())
+    except Exception as e:
+        logger.error(f"Failed to load session {session_id}: {e}")
+    return []
+
+
+def save_session(session_id: str, messages: List[dict]):
+    """Save conversation history to GCS."""
+    try:
+        blob = bucket.blob(f"sessions/{session_id}.json")
+        blob.upload_from_string(json.dumps(messages), content_type="application/json")
+    except Exception as e:
+        logger.error(f"Failed to save session {session_id}: {e}")
 
 # Create app
 app = FastAPI(title="Haley Chat")
@@ -127,15 +144,14 @@ async def chat(request: ChatRequest):
         # Generate or reuse session ID
         session_id = request.session_id or str(uuid.uuid4())
 
-        # Initialize session history if new
-        if session_id not in sessions:
-            sessions[session_id] = []
+        # Load conversation history from GCS
+        history = load_session(session_id)
 
         # Add user message to history
-        sessions[session_id].append({"role": "user", "content": request.message})
+        history.append({"role": "user", "content": request.message})
 
         # Build messages with system prompt + conversation history
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + sessions[session_id]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
 
         # Call OpenClaw's OpenAI-compatible endpoint
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -161,11 +177,14 @@ async def chat(request: ChatRequest):
                 assistant_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
 
                 # Store assistant response in history
-                sessions[session_id].append({"role": "assistant", "content": assistant_message})
+                history.append({"role": "assistant", "content": assistant_message})
 
                 # Keep history manageable (last 50 messages)
-                if len(sessions[session_id]) > 50:
-                    sessions[session_id] = sessions[session_id][-50:]
+                if len(history) > 50:
+                    history = history[-50:]
+
+                # Save to GCS
+                save_session(session_id, history)
 
                 return {
                     "response": assistant_message,
