@@ -951,7 +951,7 @@
             container.appendChild(header);
             container.appendChild(content);
             messagesInner.appendChild(container);
-            messagesInner.scrollTop = messagesInner.scrollHeight;
+            container.scrollIntoView({ behavior: 'smooth', block: 'end' });
             return container;
         }
 
@@ -964,7 +964,7 @@
                 <div class="typing-indicator"><span></span><span></span><span></span></div>
             `;
             messagesInner.appendChild(container);
-            messagesInner.scrollTop = messagesInner.scrollHeight;
+            container.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
 
         function hideTyping() {
