@@ -691,7 +691,7 @@
                 <span class="trusted-badge" id="trustedBadge" style="display: none;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Remembered</span>
                 <div class="status">
                     <div class="status-dot"></div>
-                    <span>Online</span>
+                    <span id="statusText">Online</span>
                 </div>
             </div>
         </div>
@@ -856,6 +856,15 @@
             }
         }
 
+        // Session tracking for conversation memory
+        let sessionId = sessionStorage.getItem('haley_session_id') || null;
+        let isSending = false;
+
+        // Fetch and display build version
+        fetch('/health').then(r => r.json()).then(d => {
+            if (d.version) document.getElementById('statusText').textContent = 'v' + d.version;
+        }).catch(() => {});
+
         // Connection Monitoring
         let isConnected = false;
         async function checkConnection() {
@@ -966,6 +975,10 @@
         async function sendMessage() {
             const text = messageInput.value.trim();
             if (!text && selectedFiles.length === 0) return;
+            if (isSending) return;
+
+            isSending = true;
+            sendBtn.disabled = true;
 
             // Upload files if any
             if (selectedFiles.length > 0) {
@@ -989,19 +1002,36 @@
                 showTyping();
 
                 try {
+                    const body = { message: text };
+                    if (sessionId) body.session_id = sessionId;
+
                     const res = await fetch(`${API_URL}/chat`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message: text })
+                        body: JSON.stringify(body)
                     });
                     hideTyping();
                     const data = await res.json();
+
+                    if (data.session_id) {
+                        sessionId = data.session_id;
+                        sessionStorage.setItem('haley_session_id', sessionId);
+                    }
+
                     if (data.response) addMessage(data.response, 'assistant');
                 } catch (e) {
                     hideTyping();
                     addMessage('Sorry, something went wrong. Try again?', 'assistant');
+                } finally {
+                    isSending = false;
+                    sendBtn.disabled = false;
+                    messageInput.focus();
+                    return;
                 }
             }
+
+            isSending = false;
+            sendBtn.disabled = false;
         }
 
         async function loadHistory() {

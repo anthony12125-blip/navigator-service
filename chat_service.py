@@ -39,8 +39,42 @@ bucket = storage_client.bucket(GCS_BUCKET)
 # Auth config
 AUTH_PASSWORD = os.getenv("CHAT_PASSWORD", "default-password")
 
-# Session storage
-sessions: Dict[str, List[dict]] = {}
+# System prompt - enforces English
+SYSTEM_PROMPT = (
+    "You MUST always respond in English. Never respond in Chinese, Japanese, Korean, "
+    "or any other non-English language unless the user explicitly asks you to."
+)
+
+# Build version
+BUILD_VERSION = "1.0.0"
+
+# In-memory session cache (primary, fast, message-to-message)
+session_cache: Dict[str, List[dict]] = {}
+
+
+def load_session(session_id: str) -> List[dict]:
+    """Load conversation history. Memory first, GCS fallback."""
+    if session_id in session_cache:
+        return session_cache[session_id]
+    try:
+        blob = bucket.blob(f"sessions/{session_id}.json")
+        if blob.exists():
+            history = json.loads(blob.download_as_text())
+            session_cache[session_id] = history
+            return history
+    except Exception as e:
+        logger.error(f"Failed to load session from GCS {session_id}: {e}")
+    return []
+
+
+def save_session(session_id: str, messages: List[dict]):
+    """Save conversation history to both memory and GCS."""
+    session_cache[session_id] = messages
+    try:
+        blob = bucket.blob(f"sessions/{session_id}.json")
+        blob.upload_from_string(json.dumps(messages), content_type="application/json")
+    except Exception as e:
+        logger.error(f"Failed to save session to GCS {session_id}: {e}")
 
 # Auth storage - now persistent in GCS
 TRUSTED_IPS_FILE = "trusted_ips.json"
@@ -155,7 +189,7 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check"""
-    return {"status": "healthy", "openclaw_url": OPENCLAW_URL}
+    return {"status": "healthy", "version": BUILD_VERSION, "openclaw_url": OPENCLAW_URL}
 
 
 @app.get("/api/history")
@@ -268,14 +302,23 @@ async def chat(request: ChatRequest):
     """Send message to OpenClaw and get response"""
     try:
         logger.info(f"Chat message: {request.message[:50]}...")
-        
+
         # Generate or reuse session ID
         session_id = request.session_id or str(uuid.uuid4())
-        
-        # Save user message to history
-        history = get_chat_history()
-        history.append({"role": "user", "content": request.message, "timestamp": str(uuid.uuid4())[:8]})
-        
+
+        # Load conversation history (memory-first, GCS fallback)
+        history = load_session(session_id)
+
+        # Add user message to history
+        history.append({"role": "user", "content": request.message})
+
+        # Also save to global chat history for UI display
+        global_history = get_chat_history()
+        global_history.append({"role": "user", "content": request.message, "timestamp": str(uuid.uuid4())[:8]})
+
+        # Build messages with system prompt + conversation history
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+
         # Call OpenClaw's OpenAI-compatible endpoint
         async with httpx.AsyncClient(timeout=60.0) as client:
             headers = {
@@ -283,26 +326,36 @@ async def chat(request: ChatRequest):
             }
             if OPENCLAW_TOKEN:
                 headers["Authorization"] = f"Bearer {OPENCLAW_TOKEN}"
-            
+
             response = await client.post(
                 f"{OPENCLAW_URL}/v1/chat/completions",
                 headers=headers,
                 json={
                     "model": "openclaw:main",
-                    "messages": [{"role": "user", "content": request.message}],
+                    "messages": messages,
                     "stream": False,
-                    "user": session_id  # For session persistence
+                    "user": session_id
                 }
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 assistant_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                
-                # Save assistant response to history
-                history.append({"role": "assistant", "content": assistant_message, "timestamp": str(uuid.uuid4())[:8]})
-                save_chat_history(history)
-                
+
+                # Store assistant response in per-session history
+                history.append({"role": "assistant", "content": assistant_message})
+
+                # Keep history manageable (last 50 messages)
+                if len(history) > 50:
+                    history = history[-50:]
+
+                # Save per-session history (memory + GCS)
+                save_session(session_id, history)
+
+                # Save to global chat history for UI display
+                global_history.append({"role": "assistant", "content": assistant_message, "timestamp": str(uuid.uuid4())[:8]})
+                save_chat_history(global_history)
+
                 return {
                     "response": assistant_message,
                     "status": "success",
@@ -316,10 +369,14 @@ async def chat(request: ChatRequest):
                     "status": "error",
                     "session_id": session_id
                 }
-                
+
     except Exception as e:
         logger.error(f"Chat error: {e}")
-        return {"response": "Something went wrong. Try again?", "status": "error"}
+        return {
+            "response": "Something went wrong. Try again?",
+            "status": "error",
+            "session_id": request.session_id
+        }
 
 
 @app.websocket("/ws/chat")
