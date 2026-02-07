@@ -409,7 +409,7 @@
         const sendBtn = document.getElementById('sendBtn');
         const recordingTime = document.getElementById('recordingTime');
 
-        let sessionId = null;
+        let sessionId = sessionStorage.getItem('haley_session_id') || null;
         let isSending = false;
         let isRecording = false;
         let mediaRecorder = null;
@@ -487,7 +487,10 @@
                 hideTyping();
                 const data = await response.json();
 
-                if (data.session_id) sessionId = data.session_id;
+                if (data.session_id) {
+                    sessionId = data.session_id;
+                    sessionStorage.setItem('haley_session_id', sessionId);
+                }
 
                 if (data.response) {
                     addMessage(data.response, 'assistant');

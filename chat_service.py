@@ -182,7 +182,11 @@ async def chat(request: ChatRequest):
 
     except Exception as e:
         logger.error(f"Chat error: {e}")
-        return {"response": "Something went wrong. Try again?", "status": "error"}
+        return {
+            "response": "Something went wrong. Try again?",
+            "status": "error",
+            "session_id": request.session_id
+        }
 
 
 @app.websocket("/ws/chat")
