@@ -332,7 +332,7 @@
             <h1>Haley</h1>
             <div class="status">
                 <div class="status-dot"></div>
-                <span>Online</span>
+                <span id="statusText">Online</span>
             </div>
         </div>
 
@@ -401,6 +401,11 @@
         if (sessionStorage.getItem('haley_auth') === 'true') {
             showChat();
         }
+
+        // Fetch and display build version
+        fetch('/health').then(r => r.json()).then(d => {
+            if (d.version) document.getElementById('statusText').textContent = 'v' + d.version;
+        }).catch(() => {});
 
         // ===== Chat =====
         const messagesDiv = document.getElementById('messages');

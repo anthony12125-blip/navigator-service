@@ -45,25 +45,36 @@ SYSTEM_PROMPT = (
     "or any other non-English language unless the user explicitly asks you to."
 )
 
-# Session storage helpers (GCS-backed)
+# Build version
+BUILD_VERSION = "1.0.0"
+
+# In-memory session cache (primary, fast, message-to-message)
+session_cache: Dict[str, List[dict]] = {}
+
+
 def load_session(session_id: str) -> List[dict]:
-    """Load conversation history from GCS."""
+    """Load conversation history. Memory first, GCS fallback."""
+    if session_id in session_cache:
+        return session_cache[session_id]
     try:
         blob = bucket.blob(f"sessions/{session_id}.json")
         if blob.exists():
-            return json.loads(blob.download_as_text())
+            history = json.loads(blob.download_as_text())
+            session_cache[session_id] = history
+            return history
     except Exception as e:
-        logger.error(f"Failed to load session {session_id}: {e}")
+        logger.error(f"Failed to load session from GCS {session_id}: {e}")
     return []
 
 
 def save_session(session_id: str, messages: List[dict]):
-    """Save conversation history to GCS."""
+    """Save conversation history to both memory and GCS."""
+    session_cache[session_id] = messages
     try:
         blob = bucket.blob(f"sessions/{session_id}.json")
         blob.upload_from_string(json.dumps(messages), content_type="application/json")
     except Exception as e:
-        logger.error(f"Failed to save session {session_id}: {e}")
+        logger.error(f"Failed to save session to GCS {session_id}: {e}")
 
 # Create app
 app = FastAPI(title="Haley Chat")
@@ -108,7 +119,7 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check"""
-    return {"status": "healthy", "openclaw_url": OPENCLAW_URL}
+    return {"status": "healthy", "version": BUILD_VERSION, "openclaw_url": OPENCLAW_URL}
 
 
 @app.post("/api/auth")
