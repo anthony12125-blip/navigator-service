@@ -30,6 +30,13 @@ steps:
       - '--set-env-vars'
       - 'OPENCLAW_URL=${_OPENCLAW_URL},OPENAI_API_KEY=${_OPENAI_API_KEY},ELEVENLABS_API_KEY=${_ELEVENLABS_API_KEY}'
 
+  # Deploy Firebase Hosting (rewrites to Cloud Run)
+  - name: 'node:20'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'npm install -g firebase-tools && firebase deploy --only hosting --project $PROJECT_ID'
+
 images:
   - 'gcr.io/$PROJECT_ID/haley-chat:$SHORT_SHA'
 
