@@ -756,6 +756,7 @@
         let recordingInterval = null;
         let recordingSeconds = 0;
         let selectedFiles = [];
+        let currentAudio = null;
         let isSpeaking = false;
 
         // Browser Fingerprint
@@ -939,7 +940,7 @@
             content.className = 'message-content';
             content.textContent = text;
             
-            if (role === 'assistant' && hasBrowserTTS) {
+            if (role === 'assistant') {
                 const btn = document.createElement('button');
                 btn.className = 'speaker-btn';
                 btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
@@ -1049,15 +1050,10 @@
             }
         }
 
-        // Voice/TTS - Browser speechSynthesis only
-        const hasBrowserTTS = 'speechSynthesis' in window;
-
-        // Hide speaker buttons if browser doesn't support speechSynthesis
-        if (!hasBrowserTTS) {
-            document.querySelectorAll('.speaker-btn').forEach(b => b.style.display = 'none');
-        }
-
+        // Voice/TTS Functions
         function speak(text, btn) {
+            if (!window.speechSynthesis) return;
+
             if (isSpeaking) {
                 window.speechSynthesis.cancel();
                 isSpeaking = false;
@@ -1065,11 +1061,10 @@
                 return;
             }
 
-            window.speechSynthesis.cancel(); // Stop any current speech
+            window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.rate = 1;
             utterance.pitch = 1;
-            utterance.lang = 'en-US';
             isSpeaking = true;
             if (btn) btn.classList.add('playing');
 
@@ -1163,6 +1158,11 @@
             updateThemeIcon(true);
         } else {
             updateThemeIcon(false);
+        }
+
+        // Hide speaker buttons if no speechSynthesis support
+        if (!window.speechSynthesis) {
+            document.querySelectorAll('.speaker-btn').forEach(b => b.style.display = 'none');
         }
 
         // Init
