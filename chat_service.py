@@ -46,10 +46,39 @@ SYSTEM_PROMPT = (
 )
 
 # Build version
-BUILD_VERSION = "005"
+BUILD_VERSION = "006"
 
 # In-memory session cache (primary, fast, message-to-message)
 session_cache: Dict[str, List[dict]] = {}
+
+# TTS rate limiting - ElevenLabs free tier allows 3 concurrent requests
+tts_semaphore = asyncio.Semaphore(3)
+
+async def call_elevenlabs_with_retry(client, voice_id, text, max_retries=3):
+    """Call ElevenLabs API with retry logic for rate limiting"""
+    for attempt in range(max_retries):
+        try:
+            async with tts_semaphore:  # Limit concurrent requests
+                response = await client.post(
+                    f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                    headers={
+                        "xi-api-key": ELEVENLABS_API_KEY,
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "text": text,
+                        "model_id": "eleven_multilingual_v2"
+                    }
+                )
+                return response
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
+                logger.warning(f"TTS attempt {attempt + 1} failed, retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            else:
+                raise
+    return None
 
 
 def load_session(session_id: str) -> List[dict]:
@@ -445,7 +474,7 @@ async def transcribe(audio: UploadFile = File(...)):
 
 @app.post("/api/speak")
 async def speak(request: SpeakRequest):
-    """Text to speech using ElevenLabs"""
+    """Text to speech using ElevenLabs with rate limiting"""
     try:
         if not ELEVENLABS_API_KEY:
             logger.error("ELEVENLABS_API_KEY not set")
@@ -454,17 +483,11 @@ async def speak(request: SpeakRequest):
         logger.info(f"TTS request: voice={request.voice_id}, text_len={len(request.text)}")
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"https://api.elevenlabs.io/v1/text-to-speech/{request.voice_id}",
-                headers={
-                    "xi-api-key": ELEVENLABS_API_KEY,
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "text": request.text,
-                    "model_id": "eleven_multilingual_v2"
-                }
-            )
+            response = await call_elevenlabs_with_retry(client, request.voice_id, request.text)
+            
+            if response is None:
+                logger.error("TTS failed after all retries")
+                return JSONResponse(status_code=503, content={"error": "TTS service temporarily unavailable. Please try again in a few seconds."})
 
             logger.info(f"ElevenLabs response: status={response.status_code}")
 
@@ -474,6 +497,9 @@ async def speak(request: SpeakRequest):
                     BytesIO(response.content),
                     media_type="audio/mpeg"
                 )
+            elif response.status_code == 429:
+                logger.error(f"TTS rate limited: {response.text[:200]}")
+                return JSONResponse(status_code=429, content={"error": "Too many requests. Please wait a few seconds and try again."})
             else:
                 logger.error(f"TTS error: status={response.status_code}, body={response.text[:500]}")
                 return JSONResponse(status_code=502, content={"error": f"TTS failed: {response.status_code}"})
