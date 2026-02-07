@@ -1099,15 +1099,33 @@
                     if (btn) btn.classList.remove('playing');
                 };
 
-                currentAudio.onerror = () => {
+                currentAudio.onerror = (e) => {
                     isSpeaking = false;
                     currentAudio = null;
                     URL.revokeObjectURL(url);
                     if (btn) btn.classList.remove('playing', 'loading');
-                    console.error('Audio playback failed');
+                    console.error('Audio playback error:', e);
                 };
 
-                await currentAudio.play();
+                // Handle autoplay policy - play() returns a promise
+                try {
+                    const playPromise = currentAudio.play();
+                    if (playPromise !== undefined) {
+                        await playPromise;
+                        console.log('Audio playback started');
+                    }
+                } catch (playError) {
+                    console.error('Autoplay blocked or playback failed:', playError);
+                    isSpeaking = false;
+                    currentAudio = null;
+                    URL.revokeObjectURL(url);
+                    if (btn) {
+                        btn.classList.remove('playing', 'loading');
+                        // Show visual feedback that autoplay is blocked
+                        btn.style.color = '#ff4444';
+                        setTimeout(() => { btn.style.color = ''; }, 2000);
+                    }
+                }
             } catch (e) {
                 console.error('TTS error:', e);
                 isSpeaking = false;
