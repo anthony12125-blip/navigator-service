@@ -46,7 +46,7 @@ SYSTEM_PROMPT = (
 )
 
 # Build version
-BUILD_VERSION = "003"
+BUILD_VERSION = "004"
 
 # In-memory session cache (primary, fast, message-to-message)
 session_cache: Dict[str, List[dict]] = {}
@@ -453,7 +453,7 @@ async def speak(request: SpeakRequest):
         
         logger.info(f"TTS request: voice={request.voice_id}, text_len={len(request.text)}")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"https://api.elevenlabs.io/v1/text-to-speech/{request.voice_id}",
                 headers={
