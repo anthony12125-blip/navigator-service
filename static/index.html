@@ -1056,7 +1056,7 @@
                 currentAudio.pause();
                 currentAudio = null;
                 isSpeaking = false;
-                if (btn) btn.classList.remove('playing');
+                if (btn) btn.classList.remove('playing', 'loading');
                 return;
             }
 
@@ -1069,29 +1069,50 @@
                     body: JSON.stringify({ text })
                 });
 
-                if (res.ok) {
-                    const blob = await res.blob();
-                    const url = URL.createObjectURL(blob);
-                    currentAudio = new Audio(url);
-                    isSpeaking = true;
-
-                    if (btn) {
-                        btn.classList.remove('loading');
-                        btn.classList.add('playing');
-                    }
-
-                    currentAudio.onended = () => {
-                        isSpeaking = false;
-                        currentAudio = null;
-                        if (btn) btn.classList.remove('playing');
-                    };
-
-                    currentAudio.play();
-                } else if (btn) {
-                    btn.classList.remove('loading');
+                if (!res.ok) {
+                    console.error('TTS failed:', res.status);
+                    if (btn) btn.classList.remove('loading');
+                    return;
                 }
+
+                const contentType = res.headers.get('content-type') || '';
+                if (!contentType.includes('audio')) {
+                    console.error('TTS returned non-audio:', contentType);
+                    if (btn) btn.classList.remove('loading');
+                    return;
+                }
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                currentAudio = new Audio(url);
+                isSpeaking = true;
+
+                if (btn) {
+                    btn.classList.remove('loading');
+                    btn.classList.add('playing');
+                }
+
+                currentAudio.onended = () => {
+                    isSpeaking = false;
+                    currentAudio = null;
+                    URL.revokeObjectURL(url);
+                    if (btn) btn.classList.remove('playing');
+                };
+
+                currentAudio.onerror = () => {
+                    isSpeaking = false;
+                    currentAudio = null;
+                    URL.revokeObjectURL(url);
+                    if (btn) btn.classList.remove('playing', 'loading');
+                    console.error('Audio playback failed');
+                };
+
+                await currentAudio.play();
             } catch (e) {
-                if (btn) btn.classList.remove('loading');
+                console.error('TTS error:', e);
+                isSpeaking = false;
+                currentAudio = null;
+                if (btn) btn.classList.remove('loading', 'playing');
             }
         }
 

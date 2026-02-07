@@ -46,7 +46,7 @@ SYSTEM_PROMPT = (
 )
 
 # Build version
-BUILD_VERSION = "004"
+BUILD_VERSION = "005"
 
 # In-memory session cache (primary, fast, message-to-message)
 session_cache: Dict[str, List[dict]] = {}
@@ -449,10 +449,10 @@ async def speak(request: SpeakRequest):
     try:
         if not ELEVENLABS_API_KEY:
             logger.error("ELEVENLABS_API_KEY not set")
-            return {"error": "ElevenLabs API key not configured"}
-        
+            return JSONResponse(status_code=503, content={"error": "ElevenLabs API key not configured"})
+
         logger.info(f"TTS request: voice={request.voice_id}, text_len={len(request.text)}")
-        
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"https://api.elevenlabs.io/v1/text-to-speech/{request.voice_id}",
@@ -465,9 +465,9 @@ async def speak(request: SpeakRequest):
                     "model_id": "eleven_multilingual_v2"
                 }
             )
-            
+
             logger.info(f"ElevenLabs response: status={response.status_code}")
-            
+
             if response.status_code == 200:
                 logger.info(f"TTS success: {len(response.content)} bytes")
                 return StreamingResponse(
@@ -476,13 +476,13 @@ async def speak(request: SpeakRequest):
                 )
             else:
                 logger.error(f"TTS error: status={response.status_code}, body={response.text[:500]}")
-                return {"error": f"TTS failed: {response.status_code}"}
-                
+                return JSONResponse(status_code=502, content={"error": f"TTS failed: {response.status_code}"})
+
     except Exception as e:
         logger.error(f"Speak error: {type(e).__name__}: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return {"error": str(e)}
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 # ============================================================================
