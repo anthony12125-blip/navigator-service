@@ -190,6 +190,11 @@ app.add_middleware(
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Haley UI - voice chat frontend (served at /haley-ui)
+import os as _os
+if _os.path.isdir("static/haley-ui"):
+    app.mount("/haley-ui", StaticFiles(directory="static/haley-ui", html=True), name="haley-ui")
+
 
 # ============================================================================
 # Models

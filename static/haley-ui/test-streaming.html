@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Streaming Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        #output { background: #000; padding: 20px; margin-top: 20px; white-space: pre-wrap; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        .log { color: #4CAF50; }
+        .error { color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>Backend Streaming Test</h1>
+    <button onclick="testStream()">Test Stream</button>
+    <button onclick="clearOutput()">Clear</button>
+    <div id="output"></div>
+
+    <script>
+        const BACKEND_URL = 'https://logic-engine-core2-409495160162.us-central1.run.app';
+        const output = document.getElementById('output');
+
+        function log(msg, isError = false) {
+            const line = document.createElement('div');
+            line.className = isError ? 'error' : 'log';
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            output.appendChild(line);
+            console.log(msg);
+        }
+
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+
+        async function testStream() {
+            log('🚀 Starting test...');
+
+            try {
+                // Step 1: Submit
+                log('1️⃣ Submitting message to /chat/submit...');
+                const submitResponse = await fetch(`${BACKEND_URL}/chat/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: 'browser-test',
+                        user_id: 'test-user',
+                        message: 'Hello from browser',
+                        provider: 'gemini',
+                        mode: 'auto'
+                    }),
+                });
+
+                if (!submitResponse.ok) {
+                    throw new Error(`Submit failed: ${submitResponse.status}`);
+                }
+
+                const data = await submitResponse.json();
+                log(`✅ Got response: ${JSON.stringify(data)}`);
+
+                const { assistant_message_id } = data;
+                log(`📨 assistant_message_id: ${assistant_message_id}`);
+
+                // Step 2: Stream
+                const streamUrl = `${BACKEND_URL}/chat/stream/${assistant_message_id}`;
+                log(`2️⃣ Connecting to EventSource: ${streamUrl}`);
+
+                const eventSource = new EventSource(streamUrl);
+                let fullResponse = '';
+                let tokenCount = 0;
+
+                eventSource.onopen = () => {
+                    log('✅ EventSource opened!');
+                };
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (data.type === 'token') {
+                            fullResponse += data.content;
+                            tokenCount++;
+                            log(`📝 Token ${tokenCount}: "${data.content}"`);
+                        } else if (data.type === 'done') {
+                            log(`✅ Stream complete! Total tokens: ${tokenCount}`);
+                            log(`📄 Full response: ${fullResponse}`);
+                            eventSource.close();
+                        } else if (data.type === 'error') {
+                            log(`❌ Stream error: ${data.error}`, true);
+                            eventSource.close();
+                        } else if (data.type === 'status') {
+                            log(`ℹ️ Status: ${data.status}`);
+                        }
+                    } catch (error) {
+                        log(`❌ Parse error: ${error.message}`, true);
+                    }
+                };
+
+                eventSource.onerror = (error) => {
+                    log(`❌ EventSource error!`, true);
+                    log(`   readyState: ${eventSource.readyState}`, true);
+                    eventSource.close();
+                };
+
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, true);
+            }
+        }
+    </script>
+</body>
+</html>
